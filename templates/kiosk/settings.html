@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}{{ ctx.t.t("settings-title") }} · {% endblock %}
+{% block body_class %}kiosk kiosk-settings{% endblock %}
+{% block content %}
+<section class="user-head">
+  <a href="/u/{{ user.id }}" class="btn btn-secondary">⟵ {{ ctx.t.t("back") }}</a>
+  <h1>{{ ctx.t.t("settings-title") }} – {{ user.name }}</h1>
+</section>
+
+{% if let Some(msg) = message %}<div class="flash flash-{{ msg.kind }}" role="status">{{ msg.text }}</div>{% endif %}
+
+<div class="cards">
+  <section class="card">
+    <h2>{% if user.has_pin() %}{{ ctx.t.t("pin-change-title") }}{% else %}{{ ctx.t.t("pin-set-title") }}{% endif %}</h2>
+    <p class="hint">{{ ctx.t.t("pin-rules") }}</p>
+    <form method="post" action="/u/{{ user.id }}/settings/pin" class="form">
+      <label for="pin">{{ ctx.t.t("pin-new") }}</label>
+      <input type="password" id="pin" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off" required>
+      <label for="pin_repeat">{{ ctx.t.t("pin-repeat") }}</label>
+      <input type="password" id="pin_repeat" name="pin_repeat" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off" required>
+      <button type="submit" class="btn btn-primary">{{ ctx.t.t("save") }}</button>
+    </form>
+    {% if user.has_pin() %}
+    <form method="post" action="/u/{{ user.id }}/settings/pin" class="form-inline" data-confirm="{{ ctx.t.t("pin-remove-confirm") }}">
+      <input type="hidden" name="remove" value="1">
+      <button type="submit" class="btn btn-ghost">{{ ctx.t.t("pin-remove") }}</button>
+    </form>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>{{ ctx.t.t("language-preference") }}</h2>
+    <p class="hint">{{ ctx.t.t("language-preference-hint") }}</p>
+    <form method="post" action="/u/{{ user.id }}/settings/language" class="form choice-list">
+      <label class="choice">
+        <input type="radio" name="language" value=""{% if user.language.is_none() %} checked{% endif %}>
+        <span>{{ ctx.t.t("language-device") }}</span>
+      </label>
+      {%- for l in ctx.t.languages() %}
+      <label class="choice">
+        <input type="radio" name="language" value="{{ l.code }}"{% if user.language.as_deref() == Some(l.code.as_str()) %} checked{% endif %}>
+        {%- if let Some(flag) = l.flag_url %}<img src="{{ flag }}" alt="" width="28" height="20">{% endif %}
+        <span>{{ l.name }}</span>
+      </label>
+      {%- endfor %}
+      <button type="submit" class="btn btn-primary">{{ ctx.t.t("save") }}</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

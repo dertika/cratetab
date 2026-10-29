@@ -1,0 +1,68 @@
+{% extends "admin/layout.html" %}
+{% block title %}{{ ctx.t.t("admin-nav-articles") }} · {% endblock %}
+{% block nav_articles %}active{% endblock %}
+{% block content %}
+<div class="section-head">
+  <h1>{% if id.is_some() %}{{ name }}{% else %}{{ ctx.t.t("article-new") }}{% endif %}</h1>
+  <a href="/admin/articles" class="btn btn-secondary">⟵ {{ ctx.t.t("back") }}</a>
+</div>
+{% if saved %}<div class="flash flash-ok" role="status">{{ ctx.t.t("saved") }}</div>{% endif %}
+{% if let Some(e) = error %}<div class="flash flash-error" role="alert">{{ e }}</div>{% endif %}
+
+<div class="cards">
+  <section class="card">
+    <form method="post" action="{% if let Some(id) = id %}/admin/articles/{{ id }}{% else %}/admin/articles/new{% endif %}" class="form">
+      <label for="name">{{ ctx.t.t("article-name") }}</label>
+      <input type="text" id="name" name="name" value="{{ name }}" required maxlength="80">
+
+      {%- for tr in translations %}
+      <label for="name_{{ tr.lang.code }}">
+        {%- if let Some(flag) = tr.lang.flag_url %}<img src="{{ flag }}" alt="" width="21" height="15"> {% endif -%}
+        {{ ctx.t.t1("article-name-in", "language", tr.lang.name) }}
+      </label>
+      <input type="text" id="name_{{ tr.lang.code }}" name="name_{{ tr.lang.code }}" value="{{ tr.value }}" maxlength="80"
+             placeholder="{{ ctx.t.t("article-name-fallback") }}">
+      {%- endfor %}
+
+      <label for="price">{{ ctx.t.t("article-price") }}</label>
+      <input type="text" id="price" name="price" value="{{ price }}" inputmode="decimal" required placeholder="1{{ ctx.t.decimal_separator() }}50">
+
+      <label for="sort_order">{{ ctx.t.t("article-sort") }}</label>
+      <input type="number" id="sort_order" name="sort_order" value="{{ sort_order }}" step="1">
+
+      <label for="barcodes">{{ ctx.t.t("article-barcodes") }}</label>
+      <textarea id="barcodes" name="barcodes" rows="4" data-scan-append>{{ barcodes }}</textarea>
+      <p class="hint">{{ ctx.t.t("article-barcodes-hint") }}</p>
+      <button type="button" class="btn btn-secondary btn-small" data-camera-scan data-scan-target="#barcodes">📷 {{ ctx.t.t("scan-camera") }}</button>
+
+      <label class="choice">
+        <input type="checkbox" name="active"{% if active %} checked{% endif %}>
+        <span>{{ ctx.t.t("article-active") }}</span>
+      </label>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ ctx.t.t("save") }}</button>
+      </div>
+    </form>
+  </section>
+
+  {% if let Some(id) = id %}
+  <section class="card">
+    <h2>{{ ctx.t.t("article-image") }}</h2>
+    {% if let Some(url) = image_url %}
+    <img src="{{ url }}" alt="" class="article-preview">
+    <form method="post" action="/admin/articles/{{ id }}/image/delete" class="form-inline" data-confirm="{{ ctx.t.t("article-image-delete-confirm") }}">
+      <button type="submit" class="btn btn-ghost btn-small">{{ ctx.t.t("article-image-delete") }}</button>
+    </form>
+    {% else %}
+    <p class="muted">{{ ctx.t.t("article-image-none") }}</p>
+    {% endif %}
+    <form method="post" action="/admin/articles/{{ id }}/image" enctype="multipart/form-data" class="form">
+      <label for="image">{{ ctx.t.tn("article-image-upload", "kb", max_image_kb as i64) }}</label>
+      <input type="file" id="image" name="image" accept="image/png,image/jpeg,image/webp,image/gif" required>
+      <button type="submit" class="btn btn-primary">{{ ctx.t.t("upload") }}</button>
+    </form>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

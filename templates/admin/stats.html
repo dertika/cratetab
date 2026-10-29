@@ -1,0 +1,58 @@
+{% extends "admin/layout.html" %}
+{% block title %}{{ ctx.t.t("admin-nav-stats") }} · {% endblock %}
+{% block nav_stats %}active{% endblock %}
+{% block content %}
+<h1>{{ ctx.t.t("admin-nav-stats") }}</h1>
+
+<div class="stat-cards">
+  <div class="stat-card">
+    <span class="stat-label">{{ ctx.t.t("stats-total-balance") }}</span>
+    <span class="stat-value">{{ ctx.t.money(summary.total_cents) }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">{{ ctx.t.t("stats-credit") }}</span>
+    <span class="stat-value">{{ ctx.t.money(summary.credit_cents) }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">{{ ctx.t.t("stats-debt") }}</span>
+    <span class="stat-value neg">{{ ctx.t.money(summary.debt_cents) }}</span>
+  </div>
+</div>
+
+<form method="get" action="/admin/stats" class="filters">
+  <label>{{ ctx.t.t("stats-year") }}
+    <select name="year" data-autosubmit>
+      {%- for y in years %}<option value="{{ y }}"{% if *y == year %} selected{% endif %}>{{ y }}</option>{% endfor %}
+    </select>
+  </label>
+  <noscript><button type="submit" class="btn btn-primary">{{ ctx.t.t("filter-apply") }}</button></noscript>
+</form>
+
+<div class="stat-cards">
+  <div class="stat-card">
+    <span class="stat-label">{{ ctx.t.t1("stats-year-revenue", "year", year.to_string()) }}</span>
+    <span class="stat-value">{{ ctx.t.money(year_revenue_cents) }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">{{ ctx.t.t1("stats-year-deposits", "year", year.to_string()) }}</span>
+    <span class="stat-value">{{ ctx.t.money(year_deposits_cents) }}</span>
+  </div>
+</div>
+
+<h2>{{ ctx.t.t1("stats-by-article", "year", year.to_string()) }}</h2>
+{% let list = year_articles %}
+{% include "admin/stats_articles.html" %}
+
+<h2>{{ ctx.t.t("stats-by-month") }}</h2>
+{%- for m in months %}
+<details class="card"{% if loop.first %} open{% endif %}>
+  <summary>
+    <strong>{{ m.label }}</strong> · {{ ctx.t.t("stats-revenue") }} {{ ctx.t.money(m.revenue_cents) }}
+    · {{ ctx.t.t("stats-deposits") }} {{ ctx.t.money(m.deposits_cents) }}
+  </summary>
+  {% let list = m.articles %}
+  {% include "admin/stats_articles.html" %}
+</details>
+{%- endfor %}
+{% if months.is_empty() %}<p class="empty">{{ ctx.t.t("tx-empty") }}</p>{% endif %}
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block body_class %}kiosk kiosk-home{% endblock %}
+{% block body_attrs %}data-scan-hint="{{ ctx.t.t("scan-select-user-first") }}"{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <input type="search" id="user-filter" class="search" placeholder="{{ ctx.t.t("user-search") }}"
+         aria-label="{{ ctx.t.t("user-search") }}" autocomplete="off" data-filter="#user-grid">
+  {% if self_registration %}
+  <a href="/register" class="btn btn-secondary">＋ {{ ctx.t.t("register-button") }}</a>
+  {% endif %}
+</div>
+
+{% if letters.len() > 6 %}
+<div class="letters" data-letter-filter="#user-grid">
+  <button type="button" class="letter active" data-letter="">{{ ctx.t.t("letters-all") }}</button>
+  {%- for l in letters %}
+  <button type="button" class="letter" data-letter="{{ l }}">{{ l }}</button>
+  {%- endfor %}
+</div>
+{% endif %}
+
+<div class="grid user-grid" id="user-grid">
+  {%- for u in users %}
+  <a class="tile user-tile" href="{% if u.has_pin() %}/u/{{ u.id }}/pin{% else %}/u/{{ u.id }}{% endif %}"
+     data-name="{{ u.name|lower }}" data-letter="{{ u.initial() }}">
+    <span class="avatar c{{ u.id % 8 }}" aria-hidden="true">{{ u.initial() }}</span>
+    <span class="tile-name">{{ u.name }}</span>
+    {%- if u.has_pin() %}<span class="pin-badge" title="{{ ctx.t.t("pin-protected") }}">🔒</span>{% endif %}
+  </a>
+  {%- endfor %}
+</div>
+<p class="empty" id="user-filter-empty" hidden>{{ ctx.t.t("user-search-empty") }}</p>
+{% if users.is_empty() %}
+<p class="empty">{{ ctx.t.t("users-empty") }}</p>
+{% endif %}
+
+<footer class="kiosk-footer">
+  <a href="/admin" class="muted-link">{{ ctx.t.t("admin-link") }}</a>
+</footer>
+{% endblock %}

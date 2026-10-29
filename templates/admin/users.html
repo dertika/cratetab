@@ -1,0 +1,44 @@
+{% extends "admin/layout.html" %}
+{% block title %}{{ ctx.t.t("admin-nav-users") }} · {% endblock %}
+{% block nav_users %}active{% endblock %}
+{% block content %}
+<h1>{{ ctx.t.t("admin-nav-users") }}</h1>
+{% if let Some(e) = error %}<div class="flash flash-error" role="alert">{{ e }}</div>{% endif %}
+
+<details class="card"{% if error.is_some() %} open{% endif %}>
+  <summary><strong>＋ {{ ctx.t.t("user-new") }}</strong></summary>
+  <form method="post" action="/admin/users" class="form">
+    <label for="name">{{ ctx.t.t("register-name") }}</label>
+    <input type="text" id="name" name="name" value="{{ name }}" required maxlength="40">
+    <label for="pin">{{ ctx.t.t("pin-optional") }}</label>
+    <input type="text" id="pin" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off">
+    <div class="form-actions"><button type="submit" class="btn btn-primary">{{ ctx.t.t("save") }}</button></div>
+  </form>
+</details>
+
+<input type="search" class="search" placeholder="{{ ctx.t.t("user-search") }}" aria-label="{{ ctx.t.t("user-search") }}" data-filter="#user-table">
+<div class="table-wrap">
+<table class="table" id="user-table">
+  <thead>
+    <tr>
+      <th>{{ ctx.t.t("register-name") }}</th>
+      <th class="num">{{ ctx.t.t("balance-label") }}</th>
+      <th>PIN</th>
+      <th>{{ ctx.t.t("article-status") }}</th>
+      <th>{{ ctx.t.t("user-since") }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {%- for u in users %}
+    <tr data-name="{{ u.name|lower }}"{% if !u.active %} class="inactive"{% endif %}>
+      <td><a href="/admin/users/{{ u.id }}">{{ u.name }}</a></td>
+      <td class="num nowrap{% if u.balance_cents < 0 %} neg{% endif %}">{{ ctx.t.money(u.balance_cents) }}</td>
+      <td>{% if u.has_pin() %}🔒{% endif %}</td>
+      <td>{% if u.active %}{{ ctx.t.t("status-active") }}{% else %}{{ ctx.t.t("status-inactive") }}{% endif %}</td>
+      <td class="nowrap">{{ ctx.t.date(u.created_at) }}</td>
+    </tr>
+    {%- endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

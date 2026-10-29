@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="{{ ctx.t.lang() }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false}'>
+  <title>{% block title %}{% endblock %}{{ ctx.t.t("app-name") }} · {{ ctx.t.t("app-tagline") }} · {{ ctx.club_name }}</title>
+  <link rel="icon" href="/static/img/logo.svg?v={{ ctx.version }}" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css?v={{ ctx.version }}">
+  <script src="/static/vendor/htmx.min.js?v={{ ctx.version }}" defer></script>
+  <script src="/static/app.js?v={{ ctx.version }}" defer></script>
+</head>
+<body class="{% block body_class %}{% endblock %}"
+      {%- if let Some(idle) = ctx.idle_timeout %} data-idle-timeout="{{ idle }}"{% endif %}
+      data-camera-title="{{ ctx.t.t("camera-title") }}"
+      data-camera-close="{{ ctx.t.t("camera-close") }}"
+      data-camera-unavailable="{{ ctx.t.t("camera-unavailable") }}"
+      data-camera-insecure="{{ ctx.t.t("camera-insecure") }}"
+      data-network-error="{{ ctx.t.t("error-network") }}"
+      {% block body_attrs %}{% endblock %}>
+  <header class="topbar">
+    <a href="{% block home_link %}/{% endblock %}" class="brand">
+      <img src="/static/img/logo.svg?v={{ ctx.version }}" alt="" class="logo" width="48" height="48">
+      <span class="brand-text">
+        <span class="brand-name">{{ ctx.t.t("app-name") }}</span>
+        <span class="brand-tagline">{{ ctx.t.t("app-tagline") }}</span>
+      </span>
+    </a>
+    <span class="club-name">{{ ctx.club_name }}</span>
+    <nav class="langs" aria-label="{{ ctx.t.t("language-switch") }}">
+      {%- for l in ctx.t.languages() %}
+      <a href="{{ ctx.lang_url(l.code) }}" class="lang{% if l.code == ctx.t.lang() %} active{% endif %}"
+         hreflang="{{ l.code }}" lang="{{ l.code }}" title="{{ l.name }}">
+        {%- if let Some(flag) = l.flag_url %}<img src="{{ flag }}?v={{ ctx.version }}" alt="" width="28" height="20">{% endif -%}
+        <span>{{ l.label() }}</span>
+      </a>
+      {%- endfor %}
+    </nav>
+  </header>
+  {% block nav %}{% endblock %}
+  <main class="{% block main_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

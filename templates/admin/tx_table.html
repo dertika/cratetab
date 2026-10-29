@@ -1,0 +1,46 @@
+{#- Tabelle mit Buchungen. Erwartet `rows` (Vec<TxRow>) und `ctx`. -#}
+<div class="table-wrap">
+<table class="table tx-table">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>{{ ctx.t.t("tx-time") }}</th>
+      <th>{{ ctx.t.t("tx-user") }}</th>
+      <th>{{ ctx.t.t("tx-kind") }}</th>
+      <th>{{ ctx.t.t("tx-article") }}</th>
+      <th class="num">{{ ctx.t.t("tx-amount") }}</th>
+      <th>{{ ctx.t.t("tx-note") }}</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {%- for r in rows %}
+    <tr class="kind-{{ r.kind.as_str() }}{% if r.reversed_by.is_some() %} is-reversed{% endif %}">
+      <td class="muted">{{ r.id }}</td>
+      <td class="nowrap">{{ ctx.t.datetime(r.created_at) }}</td>
+      <td><a href="/admin/users/{{ r.user_id }}">{{ r.user_name }}</a></td>
+      <td><span class="badge badge-{{ r.kind.as_str() }}">{{ ctx.t.t(r.kind_key()) }}</span></td>
+      <td>{% if let Some(a) = r.article_name %}{{ a }}{% endif %}</td>
+      <td class="num nowrap{% if r.amount_cents < 0 %} neg{% endif %}">{{ ctx.t.money(r.amount_cents) }}</td>
+      <td class="note">
+        {%- if let Some(n) = r.note %}{{ n }}{% endif %}
+        {%- if let Some(rev) = r.reverses_id %} <span class="muted">({{ ctx.t.t1("tx-reverses", "id", rev.to_string()) }})</span>{% endif %}
+        {%- if let Some(a) = r.admin_name %} <span class="muted">· {{ a }}</span>{% endif %}
+      </td>
+      <td class="nowrap">
+        {%- if r.can_reverse() %}
+        <form method="post" action="/admin/transactions/{{ r.id }}/reverse" class="form-inline"
+              data-confirm="{{ ctx.t.t1("tx-reverse-confirm", "id", r.id.to_string()) }}">
+          <input type="hidden" name="back" value="{{ ctx.path }}">
+          <button type="submit" class="btn btn-ghost btn-small">{{ ctx.t.t("tx-reverse") }}</button>
+        </form>
+        {%- else if let Some(by) = r.reversed_by %}
+        <span class="muted">{{ ctx.t.t1("tx-reversed-by", "id", by.to_string()) }}</span>
+        {%- endif %}
+      </td>
+    </tr>
+    {%- endfor %}
+  </tbody>
+</table>
+</div>
+{% if rows.is_empty() %}<p class="empty">{{ ctx.t.t("tx-empty") }}</p>{% endif %}

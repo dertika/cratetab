@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}{{ user.name }} · {% endblock %}
+{% block body_class %}kiosk kiosk-pin{% endblock %}
+{% block content %}
+<section class="narrow center">
+  <span class="avatar avatar-big c{{ user.id % 8 }}" aria-hidden="true">{{ user.initial() }}</span>
+  <h1>{{ user.name }}</h1>
+  <p>{{ ctx.t.t("pin-prompt") }}</p>
+  {% if let Some(e) = error %}<div class="flash flash-error" role="alert">{{ e }}</div>{% endif %}
+  <form method="post" action="/u/{{ user.id }}/pin" class="pin-form">
+    <input type="password" id="pin" name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="8"
+           autocomplete="off" required class="pin-input" aria-label="{{ ctx.t.t("pin-label") }}">
+    {% call m::keypad("pin", false) %}{% endcall %}
+    <button type="submit" class="btn btn-primary btn-big">{{ ctx.t.t("pin-submit") }}</button>
+  </form>
+  <p><a href="/" class="btn btn-secondary">{{ ctx.t.t("cancel") }}</a></p>
+</section>
+{% endblock %}

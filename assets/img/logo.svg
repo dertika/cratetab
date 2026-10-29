@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Crate Tab">
+  <!-- Crate Tab: ein Krebs, der eine Getränkekiste trägt -->
+  <defs>
+    <linearGradient id="shell" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF8A3D"/>
+      <stop offset="1" stop-color="#E4571B"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Beine (hinter dem Körper) -->
+  <g stroke="#C9461A" stroke-width="5" stroke-linecap="round" fill="none">
+    <path d="M30 66 L14 74 L10 88"/>
+    <path d="M32 74 L18 86 L16 100"/>
+    <path d="M98 66 L114 74 L118 88"/>
+    <path d="M96 74 L110 86 L112 100"/>
+  </g>
+
+  <!-- Augenstiele und Augen -->
+  <g stroke="#E4571B" stroke-width="5" stroke-linecap="round">
+    <path d="M52 40 L48 22"/>
+    <path d="M76 40 L80 22"/>
+  </g>
+  <circle cx="47" cy="19" r="9" fill="#fff" stroke="#C9461A" stroke-width="2.5"/>
+  <circle cx="81" cy="19" r="9" fill="#fff" stroke="#C9461A" stroke-width="2.5"/>
+  <circle cx="49" cy="20" r="4.2" fill="#1d1d1f"/>
+  <circle cx="79" cy="20" r="4.2" fill="#1d1d1f"/>
+  <circle cx="50.5" cy="18.5" r="1.4" fill="#fff"/>
+  <circle cx="80.5" cy="18.5" r="1.4" fill="#fff"/>
+
+  <!-- Panzer -->
+  <path d="M20 66 C20 44 40 34 64 34 C88 34 108 44 108 66 C108 80 94 86 64 86 C34 86 20 80 20 66 Z" fill="url(#shell)" stroke="#C9461A" stroke-width="2.5"/>
+  <!-- Zacken am Panzerrand -->
+  <path d="M24 52 l-6 -4 l8 -1 M104 52 l6 -4 l-8 -1" stroke="#C9461A" stroke-width="2.5" fill="#E4571B" stroke-linejoin="round"/>
+  <!-- Wangen und Lächeln -->
+  <ellipse cx="42" cy="58" rx="5" ry="3" fill="#FFB38A" opacity=".8"/>
+  <ellipse cx="86" cy="58" rx="5" ry="3" fill="#FFB38A" opacity=".8"/>
+  <path d="M54 56 Q64 64 74 56" stroke="#1d1d1f" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+  <!-- Flaschenhälse über der Kiste -->
+  <g>
+    <rect x="41" y="64" width="8" height="14" rx="2" fill="#7A4A12"/>
+    <rect x="55" y="62" width="8" height="16" rx="2" fill="#2E7D32"/>
+    <rect x="69" y="64" width="8" height="14" rx="2" fill="#7A4A12"/>
+    <rect x="83" y="62" width="8" height="16" rx="2" fill="#2E7D32"/>
+    <rect x="40" y="62" width="10" height="4" rx="1.5" fill="#F2C94C"/>
+    <rect x="54" y="60" width="10" height="4" rx="1.5" fill="#D9D9D9"/>
+    <rect x="68" y="62" width="10" height="4" rx="1.5" fill="#F2C94C"/>
+    <rect x="82" y="60" width="10" height="4" rx="1.5" fill="#D9D9D9"/>
+  </g>
+
+  <!-- Getränkekiste -->
+  <rect x="32" y="76" width="64" height="40" rx="5" fill="#1F6F8B" stroke="#134A5E" stroke-width="2.5"/>
+  <rect x="38" y="82" width="52" height="7" rx="3.5" fill="#134A5E"/>
+  <g stroke="#134A5E" stroke-width="2">
+    <path d="M49 92 V112"/>
+    <path d="M64 92 V112"/>
+    <path d="M79 92 V112"/>
+  </g>
+  <text x="64" y="107" font-family="Verdana, sans-serif" font-size="9" font-weight="bold" fill="#E8F4F8" text-anchor="middle" letter-spacing="1">TAB</text>
+
+  <!-- Scheren, die die Kiste halten -->
+  <g fill="url(#shell)" stroke="#C9461A" stroke-width="2.5" stroke-linejoin="round">
+    <path d="M26 70 C18 76 18 88 26 94 L34 92 L30 86 L36 84 L34 76 Z"/>
+    <path d="M102 70 C110 76 110 88 102 94 L94 92 L98 86 L92 84 L94 76 Z"/>
+  </g>
+</svg>
