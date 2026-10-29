@@ -1,0 +1,54 @@
+[package]
+name = "cratetab"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Crate Tab – Die Getränkekasse für euren Verein, geschrieben in Rust"
+repository = "https://github.com/dertika/cratetab"
+publish = false
+
+[dependencies]
+# Web-Framework und Laufzeit
+axum = { version = "0.8", features = ["multipart"] }
+axum-extra = { version = "0.12", features = ["cookie"] }
+cookie = "0.18"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "io-util"] }
+tower-http = { version = "0.7", features = ["trace", "limit"] }
+
+# Datenbank (SQLite ist in die Binärdatei eingebaut, keine Systembibliothek nötig)
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros"] }
+
+# HTML-Templates
+askama = "0.16"
+
+# Übersetzungen (Project Fluent)
+fluent-bundle = "0.16"
+fluent-langneg = "0.13"
+fluent-syntax = "0.12"
+unic-langid = "0.9"
+
+# Passwörter / PINs
+argon2 = "0.6"
+
+# Hilfsbibliotheken
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+chrono-tz = "0.10"
+csv = "1"
+mime_guess = "2"
+rand = "0.10"
+rust-embed = { version = "8", features = ["include-exclude"] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true

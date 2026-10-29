@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}{{ user.name }} · {% endblock %}
+{% block body_class %}kiosk kiosk-user{% endblock %}
+{% block body_attrs %}data-scan-url="/u/{{ user.id }}/scan"{% endblock %}
+{% block content %}
+<section class="user-head">
+  <a href="/" class="btn btn-secondary">✓ {{ ctx.t.t("done-button") }}</a>
+  <h1>{{ ctx.t.t1("hello-user", "name", user.name) }}</h1>
+  <a href="/u/{{ user.id }}/settings" class="btn btn-ghost">⚙ {{ ctx.t.t("settings-button") }}</a>
+</section>
+
+{% include "kiosk/status.html" %}
+
+<section class="articles">
+  <div class="section-head">
+    <h2>{{ ctx.t.t("articles-title") }}</h2>
+    <button type="button" class="btn btn-secondary" data-camera-scan>📷 {{ ctx.t.t("scan-camera") }}</button>
+  </div>
+  <p class="hint">{{ ctx.t.t("scan-hint") }}</p>
+  <div class="grid article-grid">
+    {%- for a in articles %}
+    <button type="button" class="tile article-tile" hx-post="/u/{{ user.id }}/buy/{{ a.id }}"
+            hx-target="#status" hx-swap="outerHTML" hx-disabled-elt="this">
+      {%- if let Some(url) = a.image_url() %}
+      <img src="{{ url }}" alt="" class="article-img" loading="lazy">
+      {%- else %}
+      <span class="article-img placeholder c{{ a.id % 8 }}" aria-hidden="true">🥤</span>
+      {%- endif %}
+      <span class="tile-name">{{ a.name }}</span>
+      <span class="price">{{ ctx.t.money(a.price_cents) }}</span>
+    </button>
+    {%- endfor %}
+  </div>
+  {% if articles.is_empty() %}<p class="empty">{{ ctx.t.t("articles-empty") }}</p>{% endif %}
+</section>
+
+<section class="deposit">
+  <h2>{{ ctx.t.t("deposit-title") }}</h2>
+  <p class="hint">{{ ctx.t.t("deposit-hint") }}</p>
+  <div class="deposit-presets">
+    {%- for p in presets %}
+    <button type="button" class="btn btn-deposit" hx-post="/u/{{ user.id }}/deposit"
+            hx-vals='{"amount": "{{ p.value }}"}' hx-target="#status" hx-swap="outerHTML" hx-disabled-elt="this">
+      ＋ {{ ctx.t.money(p.cents) }}
+    </button>
+    {%- endfor %}
+  </div>
+  <details class="deposit-custom">
+    <summary class="btn btn-secondary">{{ ctx.t.t("deposit-custom") }}</summary>
+    <form hx-post="/u/{{ user.id }}/deposit" hx-target="#status" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]"
+          data-reset-on-success>
+      <label for="deposit-amount">{{ ctx.t.t1("deposit-custom-label", "max", ctx.t.money(max_deposit_cents)) }}</label>
+      <input type="text" id="deposit-amount" name="amount" inputmode="decimal" autocomplete="off" required
+             class="amount-input" placeholder="0{{ ctx.t.decimal_separator() }}00">
+      {% call m::keypad("deposit-amount", true) %}{% endcall %}
+      <button type="submit" class="btn btn-primary btn-big">{{ ctx.t.t("deposit-submit") }}</button>
+    </form>
+  </details>
+</section>
+{% endblock %}

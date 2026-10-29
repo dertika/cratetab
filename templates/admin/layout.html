@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block body_class %}admin{% endblock %}
+{% block home_link %}/admin{% endblock %}
+{% block nav %}
+{% if let Some(name) = ctx.admin_name %}
+<nav class="admin-nav" aria-label="{{ ctx.t.t("admin-title") }}">
+  <a href="/admin" class="{% block nav_dashboard %}{% endblock %}">{{ ctx.t.t("admin-nav-dashboard") }}</a>
+  <a href="/admin/articles" class="{% block nav_articles %}{% endblock %}">{{ ctx.t.t("admin-nav-articles") }}</a>
+  <a href="/admin/users" class="{% block nav_users %}{% endblock %}">{{ ctx.t.t("admin-nav-users") }}</a>
+  <a href="/admin/transactions" class="{% block nav_transactions %}{% endblock %}">{{ ctx.t.t("admin-nav-transactions") }}</a>
+  <a href="/admin/stats" class="{% block nav_stats %}{% endblock %}">{{ ctx.t.t("admin-nav-stats") }}</a>
+  <a href="/admin/admins" class="{% block nav_admins %}{% endblock %}">{{ ctx.t.t("admin-nav-admins") }}</a>
+  <span class="spacer"></span>
+  <a href="/">{{ ctx.t.t("admin-nav-kiosk") }}</a>
+  <form method="post" action="/admin/logout" class="form-inline">
+    <button type="submit" class="btn btn-ghost btn-small">{{ ctx.t.t1("admin-logout", "name", name) }}</button>
+  </form>
+</nav>
+{% endif %}
+{% endblock %}
+{% block main_class %}admin-main{% endblock %}

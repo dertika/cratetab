@@ -1,0 +1,65 @@
+{% extends "admin/layout.html" %}
+{% block title %}{{ ctx.t.t("admin-nav-admins") }} · {% endblock %}
+{% block nav_admins %}active{% endblock %}
+{% block content %}
+<h1>{{ ctx.t.t("admin-nav-admins") }}</h1>
+{% if saved %}<div class="flash flash-ok" role="status">{{ ctx.t.t("saved") }}</div>{% endif %}
+{% if let Some(e) = error %}<div class="flash flash-error" role="alert">{{ e }}</div>{% endif %}
+
+<div class="table-wrap">
+<table class="table">
+  <thead>
+    <tr>
+      <th>{{ ctx.t.t("admin-username") }}</th>
+      <th>{{ ctx.t.t("article-status") }}</th>
+      <th>{{ ctx.t.t("user-since") }}</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {%- for a in admins %}
+    <tr{% if !a.active %} class="inactive"{% endif %}>
+      <td>{{ a.username }}{% if a.id == me %} <span class="muted">({{ ctx.t.t("admin-me") }})</span>{% endif %}</td>
+      <td>{% if a.active %}{{ ctx.t.t("status-active") }}{% else %}{{ ctx.t.t("status-inactive") }}{% endif %}</td>
+      <td class="nowrap">{{ ctx.t.date(a.created_at) }}</td>
+      <td>
+        {%- if a.id != me %}
+        <form method="post" action="/admin/admins/{{ a.id }}/toggle" class="form-inline">
+          <button type="submit" class="btn btn-ghost btn-small">
+            {% if a.active %}{{ ctx.t.t("admin-deactivate") }}{% else %}{{ ctx.t.t("admin-activate") }}{% endif %}
+          </button>
+        </form>
+        {%- endif %}
+      </td>
+    </tr>
+    {%- endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="cards">
+  <section class="card">
+    <h2>{{ ctx.t.t("admin-new") }}</h2>
+    <form method="post" action="/admin/admins" class="form">
+      <label for="new-username">{{ ctx.t.t("admin-username") }}</label>
+      <input type="text" id="new-username" name="username" required autocomplete="off">
+      <label for="new-password">{{ ctx.t.t("admin-password") }}</label>
+      <input type="password" id="new-password" name="password" required minlength="8" autocomplete="new-password">
+      <div class="form-actions"><button type="submit" class="btn btn-primary">{{ ctx.t.t("save") }}</button></div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>{{ ctx.t.t("admin-change-password") }}</h2>
+    <form method="post" action="/admin/admins/password" class="form">
+      <label for="current">{{ ctx.t.t("admin-password-current") }}</label>
+      <input type="password" id="current" name="current" required autocomplete="current-password">
+      <label for="password">{{ ctx.t.t("admin-password-new") }}</label>
+      <input type="password" id="password" name="password" required minlength="8" autocomplete="new-password">
+      <label for="password_repeat">{{ ctx.t.t("admin-password-repeat") }}</label>
+      <input type="password" id="password_repeat" name="password_repeat" required minlength="8" autocomplete="new-password">
+      <div class="form-actions"><button type="submit" class="btn btn-primary">{{ ctx.t.t("save") }}</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}

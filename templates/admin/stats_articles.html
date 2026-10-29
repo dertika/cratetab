@@ -1,0 +1,21 @@
+{#- Umsatz pro Artikel. Erwartet `list` (Vec<ArticleStat>). -#}
+<div class="table-wrap">
+<table class="table">
+  <thead>
+    <tr>
+      <th>{{ ctx.t.t("tx-article") }}</th>
+      <th class="num">{{ ctx.t.t("stats-quantity") }}</th>
+      <th class="num">{{ ctx.t.t("stats-revenue") }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {%- for a in list %}
+    <tr>
+      <td>{{ a.name }}</td>
+      <td class="num">{{ a.quantity }}</td>
+      <td class="num nowrap">{{ ctx.t.money(a.revenue_cents) }}</td>
+    </tr>
+    {%- endfor %}
+  </tbody>
+</table>
+</div>

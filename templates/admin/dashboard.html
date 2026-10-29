@@ -1,0 +1,51 @@
+{% extends "admin/layout.html" %}
+{% block title %}{{ ctx.t.t("admin-nav-dashboard") }} · {% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+{% block content %}
+<h1>{{ ctx.t.t("admin-nav-dashboard") }}</h1>
+
+{% if !mismatches.is_empty() %}
+<div class="flash flash-error" role="alert">
+  {{ ctx.t.tn("admin-balance-mismatch", "count", mismatches.len() as i64) }}
+  <ul>
+    {%- for m in mismatches %}
+    <li>{{ m.name }}: {{ ctx.t.money(m.stored_cents) }} ≠ {{ ctx.t.money(m.computed_cents) }}</li>
+    {%- endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="stat-cards">
+  <div class="stat-card">
+    <span class="stat-label">{{ ctx.t.t("stats-total-balance") }}</span>
+    <span class="stat-value">{{ ctx.t.money(summary.total_cents) }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">{{ ctx.t.t("stats-credit") }}</span>
+    <span class="stat-value">{{ ctx.t.money(summary.credit_cents) }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">{{ ctx.t.t("stats-debt") }}</span>
+    <span class="stat-value neg">{{ ctx.t.money(summary.debt_cents) }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">{{ ctx.t.t("stats-users") }}</span>
+    <span class="stat-value">{{ summary.user_count }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">{{ ctx.t.t("stats-month-revenue") }}</span>
+    <span class="stat-value">{{ ctx.t.money(month_revenue_cents) }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">{{ ctx.t.t("stats-month-deposits") }}</span>
+    <span class="stat-value">{{ ctx.t.money(month_deposits_cents) }}</span>
+  </div>
+</div>
+
+<div class="section-head">
+  <h2>{{ ctx.t.t("admin-recent-transactions") }}</h2>
+  <a href="/admin/transactions" class="btn btn-secondary btn-small">{{ ctx.t.t("admin-show-all") }}</a>
+</div>
+{% let rows = recent %}
+{% include "admin/tx_table.html" %}
+{% endblock %}

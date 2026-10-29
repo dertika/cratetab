@@ -1,0 +1,37 @@
+# Crate Tab – Die Getränkekasse für euren Verein, geschrieben in Rust 🦀
+#
+# Start:   docker compose up -d
+# Logs:    docker compose logs -f
+# Update:  docker compose pull && docker compose up -d
+#
+# Die Datenbank liegt im Ordner ./data neben dieser Datei. Vor dem ersten
+# Start anlegen und dem Container-Benutzer (UID 65532) geben:
+#   mkdir -p data && sudo chown 65532:65532 data
+# Davor gehört ein Reverse Proxy mit HTTPS (siehe README) – ohne HTTPS
+# funktioniert der Kamera-Scanner auf Handys/Tablets nicht.
+
+services:
+  cratetab:
+    image: ghcr.io/dertika/cratetab:latest
+    # Zum lokalen Bauen statt Herunterladen die nächste Zeile einkommentieren:
+    # build: .
+    container_name: cratetab
+    restart: unless-stopped
+    ports:
+      # Nur lokal erreichbar; der Reverse Proxy leitet von außen weiter.
+      # Für einen ersten Test im LAN "8080:8080" schreiben.
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      CRATETAB_CLUB_NAME: "Mein Verein e. V."
+      CRATETAB_CURRENCY: "€"
+      CRATETAB_MIN_BALANCE: "-10"
+      CRATETAB_DEFAULT_LANGUAGE: "de"
+      CRATETAB_TIMEZONE: "Europe/Berlin"
+      # Nur beim allerersten Start benutzt (Benutzer „admin“). Danach im
+      # Admin-Bereich ändern und hier wieder entfernen.
+      CRATETAB_ADMIN_PASSWORD: "bitte-aendern"
+      # Demo-Daten anlegen (nur wenn die Datenbank leer ist)
+      CRATETAB_SEED_DEMO: "false"
+      # Weitere Optionen: siehe README, Abschnitt „Konfiguration“

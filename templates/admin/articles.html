@@ -1,0 +1,45 @@
+{% extends "admin/layout.html" %}
+{% block title %}{{ ctx.t.t("admin-nav-articles") }} · {% endblock %}
+{% block nav_articles %}active{% endblock %}
+{% block content %}
+<div class="section-head">
+  <h1>{{ ctx.t.t("admin-nav-articles") }}</h1>
+  <a href="/admin/articles/new" class="btn btn-primary">＋ {{ ctx.t.t("article-new") }}</a>
+</div>
+<div class="table-wrap">
+<table class="table">
+  <thead>
+    <tr>
+      <th></th>
+      <th>{{ ctx.t.t("article-name") }}</th>
+      <th class="num">{{ ctx.t.t("article-price") }}</th>
+      <th>{{ ctx.t.t("article-barcodes") }}</th>
+      <th>{{ ctx.t.t("article-status") }}</th>
+      <th>{{ ctx.t.t("article-sort") }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {%- for a in articles %}
+    <tr{% if !a.active %} class="inactive"{% endif %}>
+      <td class="thumb">
+        {%- if let Some(url) = a.image_url() %}<img src="{{ url }}" alt="" width="40" height="40">{% endif -%}
+      </td>
+      <td><a href="/admin/articles/{{ a.id }}">{{ a.name }}</a></td>
+      <td class="num nowrap">{{ ctx.t.money(a.price_cents) }}</td>
+      <td>{{ a.barcode_count }}</td>
+      <td>{% if a.active %}{{ ctx.t.t("status-active") }}{% else %}{{ ctx.t.t("status-inactive") }}{% endif %}</td>
+      <td class="nowrap">
+        <form method="post" action="/admin/articles/{{ a.id }}/move/up" class="form-inline">
+          <button type="submit" class="btn btn-ghost btn-small" aria-label="{{ ctx.t.t("article-move-up") }}">▲</button>
+        </form>
+        <form method="post" action="/admin/articles/{{ a.id }}/move/down" class="form-inline">
+          <button type="submit" class="btn btn-ghost btn-small" aria-label="{{ ctx.t.t("article-move-down") }}">▼</button>
+        </form>
+      </td>
+    </tr>
+    {%- endfor %}
+  </tbody>
+</table>
+</div>
+{% if articles.is_empty() %}<p class="empty">{{ ctx.t.t("articles-empty") }}</p>{% endif %}
+{% endblock %}

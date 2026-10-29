@@ -1,0 +1,63 @@
+{% extends "admin/layout.html" %}
+{% block title %}{{ user.name }} · {% endblock %}
+{% block nav_users %}active{% endblock %}
+{% block content %}
+<div class="section-head">
+  <h1>{{ user.name }} <span class="balance-inline{% if user.balance_cents < 0 %} neg{% endif %}">{{ ctx.t.money(user.balance_cents) }}</span></h1>
+  <a href="/admin/users" class="btn btn-secondary">⟵ {{ ctx.t.t("back") }}</a>
+</div>
+{% if saved %}<div class="flash flash-ok" role="status">{{ ctx.t.t("saved") }}</div>{% endif %}
+{% if let Some(e) = error %}<div class="flash flash-error" role="alert">{{ e }}</div>{% endif %}
+
+<div class="cards">
+  <section class="card">
+    <h2>{{ ctx.t.t("user-data") }}</h2>
+    <form method="post" action="/admin/users/{{ user.id }}" class="form">
+      <label for="name">{{ ctx.t.t("register-name") }}</label>
+      <input type="text" id="name" name="name" value="{{ user.name }}" required maxlength="40">
+      <label for="language">{{ ctx.t.t("language-preference") }}</label>
+      <select id="language" name="language">
+        <option value="">{{ ctx.t.t("language-device") }}</option>
+        {%- for l in ctx.t.languages() %}
+        <option value="{{ l.code }}"{% if user.language.as_deref() == Some(l.code.as_str()) %} selected{% endif %}>{{ l.name }}</option>
+        {%- endfor %}
+      </select>
+      <label class="choice">
+        <input type="checkbox" name="active"{% if user.active %} checked{% endif %}>
+        <span>{{ ctx.t.t("user-active") }}</span>
+      </label>
+      <p class="hint">{{ ctx.t.t("user-active-hint") }}</p>
+      <div class="form-actions"><button type="submit" class="btn btn-primary">{{ ctx.t.t("save") }}</button></div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>{{ ctx.t.t("correction-title") }}</h2>
+    <p class="hint">{{ ctx.t.t("correction-hint") }}</p>
+    <form method="post" action="/admin/users/{{ user.id }}/correction" class="form">
+      <label for="amount">{{ ctx.t.t("correction-amount") }}</label>
+      <input type="text" id="amount" name="amount" value="{{ correction_amount }}" inputmode="decimal" required placeholder="-2{{ ctx.t.decimal_separator() }}50">
+      <label for="reason">{{ ctx.t.t("correction-reason") }}</label>
+      <input type="text" id="reason" name="reason" value="{{ correction_reason }}" required maxlength="200">
+      <div class="form-actions"><button type="submit" class="btn btn-primary">{{ ctx.t.t("correction-submit") }}</button></div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>PIN</h2>
+    <p>{% if user.has_pin() %}{{ ctx.t.t("user-has-pin") }}{% else %}{{ ctx.t.t("user-no-pin") }}{% endif %}</p>
+    <form method="post" action="/admin/users/{{ user.id }}/pin" class="form" data-confirm="{{ ctx.t.t("pin-reset-confirm") }}">
+      <label for="pin">{{ ctx.t.t("pin-reset-label") }}</label>
+      <input type="text" id="pin" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off">
+      <div class="form-actions"><button type="submit" class="btn btn-secondary">{{ ctx.t.t("pin-reset") }}</button></div>
+    </form>
+  </section>
+</div>
+
+<div class="section-head">
+  <h2>{{ ctx.t.t("admin-recent-transactions") }}</h2>
+  <a href="/admin/transactions?user={{ user.id }}" class="btn btn-secondary btn-small">{{ ctx.t.t("admin-show-all") }}</a>
+</div>
+{% let rows = transactions %}
+{% include "admin/tx_table.html" %}
+{% endblock %}

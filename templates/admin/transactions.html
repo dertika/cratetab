@@ -1,0 +1,47 @@
+{% extends "admin/layout.html" %}
+{% block title %}{{ ctx.t.t("admin-nav-transactions") }} · {% endblock %}
+{% block nav_transactions %}active{% endblock %}
+{% block content %}
+<h1>{{ ctx.t.t("admin-nav-transactions") }}</h1>
+{% if let Some(msg) = message %}<div class="flash flash-ok" role="status">{{ msg }}</div>{% endif %}
+
+<form method="get" action="/admin/transactions" class="filters">
+  <label>{{ ctx.t.t("tx-user") }}
+    <select name="user">
+      <option value="">{{ ctx.t.t("filter-all") }}</option>
+      {%- for o in users %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>{{ ctx.t.t("tx-article") }}
+    <select name="article">
+      <option value="">{{ ctx.t.t("filter-all") }}</option>
+      {%- for o in articles %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>{{ ctx.t.t("tx-kind") }}
+    <select name="kind">
+      <option value="">{{ ctx.t.t("filter-all") }}</option>
+      {%- for o in kinds %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>{{ ctx.t.t("filter-from") }}<input type="date" name="from" value="{{ from }}"></label>
+  <label>{{ ctx.t.t("filter-to") }}<input type="date" name="to" value="{{ to }}"></label>
+  <div class="filter-actions">
+    <button type="submit" class="btn btn-primary">{{ ctx.t.t("filter-apply") }}</button>
+    <a href="/admin/transactions" class="btn btn-ghost">{{ ctx.t.t("filter-reset") }}</a>
+    <a href="/admin/transactions.csv?{{ query }}" class="btn btn-secondary">⬇ {{ ctx.t.t("export-csv") }}</a>
+  </div>
+</form>
+
+<p class="summary-line">
+  {{ ctx.t.tn("tx-count", "count", total_count) }} · {{ ctx.t.t("tx-sum") }}: <strong>{{ ctx.t.money(total_cents) }}</strong>
+</p>
+
+{% include "admin/tx_table.html" %}
+
+<nav class="pager">
+  {% if page > 1 %}<a class="btn btn-secondary btn-small" href="/admin/transactions?{{ query }}&amp;page={{ page - 1 }}">⟵ {{ ctx.t.t("page-prev") }}</a>{% endif %}
+  <span>{{ ctx.t.tn("page-current", "page", page) }}</span>
+  {% if has_next %}<a class="btn btn-secondary btn-small" href="/admin/transactions?{{ query }}&amp;page={{ page + 1 }}">{{ ctx.t.t("page-next") }} ⟶</a>{% endif %}
+</nav>
+{% endblock %}

@@ -1,0 +1,19 @@
+{#- Statusbereich der Benutzerseite. Wird nach jeder Buchung per htmx ersetzt. -#}
+<section id="status" class="status{% if status.is_negative() %} negative{% endif %}" aria-live="polite">
+  <div class="balance">
+    <span class="balance-label">{{ ctx.t.t("balance-label") }}</span>
+    <span class="balance-amount">{{ ctx.t.money(status.balance_cents) }}</span>
+    {%- if status.is_negative() %}
+    <span class="balance-hint">{{ ctx.t.t1("balance-min-hint", "min", ctx.t.money(status.min_balance_cents)) }}</span>
+    {%- endif %}
+  </div>
+  {%- if let Some(flash) = status.flash %}
+  <div class="flash flash-{{ flash.kind }}" role="status">{{ flash.text }}</div>
+  {%- endif %}
+  {%- if let Some(undo) = status.undo %}
+  <button type="button" class="btn btn-undo" hx-post="/u/{{ user.id }}/undo" hx-target="#status" hx-swap="outerHTML"
+          hx-disabled-elt="this" data-expires-in="{{ undo.seconds_left }}">
+    ↶ {{ ctx.t.t1("undo-button", "what", undo.label) }}
+  </button>
+  {%- endif %}
+</section>

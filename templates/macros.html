@@ -1,0 +1,17 @@
+{#- Ziffernblock für Touchscreens ohne Bildschirmtastatur.
+    target:  ID des Eingabefelds, in das geschrieben wird
+    decimal: true = mit Komma-Taste (für Beträge) -#}
+{% macro keypad(target, decimal) %}
+<div class="keypad" data-keypad-for="{{ target }}">
+  {%- for key in ["1", "2", "3", "4", "5", "6", "7", "8", "9"] %}
+  <button type="button" class="key" data-key="{{ key }}">{{ key }}</button>
+  {%- endfor %}
+  {%- if decimal %}
+  <button type="button" class="key" data-key="{{ ctx.t.decimal_separator() }}">{{ ctx.t.decimal_separator() }}</button>
+  {%- else %}
+  <button type="button" class="key key-muted" data-key="clear" aria-label="{{ ctx.t.t("keypad-clear") }}">C</button>
+  {%- endif %}
+  <button type="button" class="key" data-key="0">0</button>
+  <button type="button" class="key key-muted" data-key="back" aria-label="{{ ctx.t.t("keypad-back") }}">⌫</button>
+</div>
+{% endmacro %}
