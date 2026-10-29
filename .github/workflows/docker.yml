@@ -1,13 +1,15 @@
-# Baut das Docker-Image für amd64 und arm64 (Raspberry Pi) und lädt es nach
-# ghcr.io/<org>/cratetab hoch.
-#   * Push auf main  -> Tag "edge"
+# Baut das Docker-Image für amd64 und arm64 (Raspberry Pi).
+#   * Pull Request   -> nur bauen (Prüfung, dass der Container baut), kein Upload
+#   * Push auf main  -> bauen und als ghcr.io/<org>/cratetab:edge hochladen
 #   * Git-Tag v1.2.3 -> Tags "1.2.3", "1.2" und "latest"
+#   * Manuell über „Run workflow“ im Reiter Actions
 name: Docker
 
 on:
   push:
     branches: [main]
     tags: ["v*"]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -17,10 +19,14 @@ permissions:
 jobs:
   image:
     runs-on: ubuntu-latest
+    env:
+      # Bei Pull Requests wird nichts hochgeladen
+      PUSH: ${{ github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
+        if: env.PUSH == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -31,6 +37,7 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/cratetab
           tags: |
             type=edge,branch=main
+            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -38,7 +45,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ env.PUSH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
