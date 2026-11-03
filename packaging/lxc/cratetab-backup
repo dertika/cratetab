@@ -1,0 +1,14 @@
+#!/bin/sh
+# Tägliches Backup (wird von cratetab-backup.timer aufgerufen, geht auch von Hand).
+# Erstellt eine konsistente Kopie der Datenbank in /var/lib/cratetab/backups
+# und löscht Backups, die älter als CRATETAB_BACKUP_KEEP_DAYS Tage sind.
+set -eu
+. /etc/cratetab/cratetab.env
+
+dir=/var/lib/cratetab/backups
+target="$dir/cratetab-$(date +%Y-%m-%d_%H%M%S).db"
+mkdir -p "$dir"
+chown cratetab:cratetab "$dir"
+
+/usr/local/bin/cratetab backup "$target"
+find "$dir" -name 'cratetab-*.db' -type f -mtime +"${CRATETAB_BACKUP_KEEP_DAYS:-30}" -delete

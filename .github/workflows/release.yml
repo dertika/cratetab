@@ -1,0 +1,114 @@
+# Baut die Programmdateien (amd64, arm64) und ein Proxmox-LXC-Template.
+#   * Pull Request / manuell -> bauen, testen, als Workflow-Artefakt ablegen
+#   * Git-Tag v1.2.3         -> zusätzlich als GitHub-Release veröffentlichen
+#
+# Das Template basiert auf dem offiziellen Proxmox-Template debian-13-standard
+# und enthält Crate Tab als systemd-Dienst – ohne Docker.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "packaging/**"
+      - "scripts/**"
+      - "Dockerfile"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  binaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # Derselbe Cross-Build wie fürs Docker-Image (gegen Debian 12 gelinkt,
+      # läuft daher auf Debian 12 und 13)
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: binary
+          platforms: linux/amd64,linux/arm64
+          outputs: type=local,dest=out
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Dateien benennen und Prüfsummen erzeugen
+        run: |
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            cp "out/linux_$arch/cratetab" "dist/cratetab-linux-$arch"
+            chmod 755 "dist/cratetab-linux-$arch"
+            (cd dist && sha256sum "cratetab-linux-$arch" > "cratetab-linux-$arch.sha256")
+          done
+          ./dist/cratetab-linux-amd64 --version
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: dist/
+
+  lxc-template:
+    needs: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist
+      - name: Offizielles Proxmox-Template laden
+        id: base
+        run: |
+          path=$(python3 packaging/lxc/fetch-base-template.py base --debian 13 --arch amd64)
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+      - name: Template bauen
+        run: |
+          chmod 755 dist/cratetab-linux-amd64
+          sudo packaging/lxc/build-template.sh "${{ steps.base.outputs.path }}" \
+            dist/cratetab-linux-amd64 dist/cratetab-lxc-debian-13-amd64.tar.zst
+          sudo chown "$(id -u):$(id -g)" dist/cratetab-lxc-debian-13-amd64.tar.zst
+          (cd dist && sha256sum cratetab-lxc-debian-13-amd64.tar.zst > cratetab-lxc-debian-13-amd64.tar.zst.sha256)
+      - name: Template testen
+        run: |
+          mkdir smoke
+          sudo tar --zstd -xpf dist/cratetab-lxc-debian-13-amd64.tar.zst --numeric-owner -C smoke
+          sudo mount -t proc proc smoke/proc
+          trap 'sudo umount smoke/proc' EXIT
+          sudo chroot smoke sh -c '
+            set -e
+            test -x /usr/bin/curl
+            test -L /etc/systemd/system/multi-user.target.wants/cratetab.service
+            test -L /etc/systemd/system/timers.target.wants/cratetab-backup.timer
+            cratetab --version
+            cratetab seed-demo
+            cratetab check-balances
+            cratetab-backup
+            ls -la /var/lib/cratetab /var/lib/cratetab/backups
+          '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lxc-template
+          path: |
+            dist/cratetab-lxc-debian-13-amd64.tar.zst
+            dist/cratetab-lxc-debian-13-amd64.tar.zst.sha256
+          compression-level: 0
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [binaries, lxc-template]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*

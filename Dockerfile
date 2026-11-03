@@ -49,6 +49,11 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
 # Datenverzeichnis vorbereiten (gehört dem unprivilegierten Benutzer 65532)
 RUN mkdir -p /data && chown 65532:65532 /data
 
+# Nur die Binärdatei, z. B. für das LXC-Template:
+#   docker buildx build --target binary --output type=local,dest=out .
+FROM scratch AS binary
+COPY --from=builder /cratetab /cratetab
+
 FROM gcr.io/distroless/cc-debian12:nonroot
 
 LABEL org.opencontainers.image.title="Crate Tab" \

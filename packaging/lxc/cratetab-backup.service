@@ -1,0 +1,7 @@
+[Unit]
+Description=Crate Tab – Backup der Datenbank
+After=cratetab.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cratetab-backup

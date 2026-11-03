@@ -1,0 +1,14 @@
+#!/bin/sh
+# Aufruf der Hilfsbefehle im Container, z. B.
+#   cratetab check-balances
+#   cratetab set-admin-password admin neues-passwort
+# Lädt die Konfiguration und läuft als Benutzer „cratetab“, damit neu angelegte
+# Dateien (z. B. Backups) dem Dienst gehören.
+set -a
+. /etc/cratetab/cratetab.env
+set +a
+cd /var/lib/cratetab || exit 1
+if [ "$(id -u)" = "0" ]; then
+    exec setpriv --reuid=cratetab --regid=cratetab --init-groups /usr/local/lib/cratetab/cratetab "$@"
+fi
+exec /usr/local/lib/cratetab/cratetab "$@"
