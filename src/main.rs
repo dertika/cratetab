@@ -20,6 +20,7 @@ Aufruf:
   cratetab seed-demo                       Demo-Daten anlegen (nur in leerer Datenbank)
   cratetab check-balances [--repair]       Guthaben aus den Buchungen nachrechnen
   cratetab set-admin-password <name> <pw>  Admin-Passwort setzen (legt den Admin bei Bedarf an)
+  cratetab --version                       Version anzeigen
   cratetab help                            Diese Hilfe
 
 Die Konfiguration erfolgt über Umgebungsvariablen (CRATETAB_*), siehe README.
@@ -37,6 +38,13 @@ async fn main() -> Result<()> {
         .init();
 
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if matches!(
+        args.first().map(String::as_str),
+        Some("version" | "--version" | "-V")
+    ) {
+        println!("cratetab {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
     let config = Config::from_env()?;
 
     match args.first().map(String::as_str) {

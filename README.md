@@ -122,17 +122,88 @@ Beträge dürfen mit Komma oder Punkt geschrieben werden (`-10`, `-7,50`, `100.0
 
 ## Installation auf Proxmox
 
-Zwei Varianten sind sinnvoll. Für die meisten Vereine reicht ein LXC-Container.
+Empfohlen ist **Variante A**: ein fertiges LXC-Template mit Crate Tab als systemd-Dienst, ganz
+ohne Docker. Ein Container mit 1 Kern, 512 MB RAM und 4 GB Disk reicht.
 
-### Variante A: LXC-Container mit Docker (sparsam)
+### Variante A: Fertiges LXC-Template (ohne Docker, empfohlen)
+
+Zu jedem Release baut GitHub ein Template `cratetab-lxc-debian-13-amd64.tar.zst`. Es beruht auf
+dem offiziellen Proxmox-Template *debian-13-standard* und enthält zusätzlich:
+
+| Was | Wo |
+|---|---|
+| Programm | `/usr/local/lib/cratetab/cratetab`, Dienst `cratetab.service` (startet automatisch) |
+| Konfiguration | `/etc/cratetab/cratetab.env` |
+| Datenbank | `/var/lib/cratetab/cratetab.db` (Benutzer `cratetab`) |
+| Tägliches Backup | `cratetab-backup.timer` → `/var/lib/cratetab/backups/` (30 Tage) |
+| Update | `cratetab-update` |
+
+**Automatisch per Skript** (auf der Proxmox-Shell als root):
+
+```sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/dertika/cratetab/main/scripts/proxmox-install.sh)"
+```
+
+Das Skript lädt das Template, prüft die Prüfsumme, legt einen unprivilegierten Container an,
+startet ihn und zeigt am Ende Adresse und Admin-Passwort an. Einstellungen gehen per
+Umgebungsvariable, z. B. feste IP und eigener Vereinsname:
+
+```sh
+CTID=120 IP=192.168.1.50/24 GATEWAY=192.168.1.1 CLUB_NAME="Hackspace e. V." \
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/dertika/cratetab/main/scripts/proxmox-install.sh)"
+```
+
+Alle Optionen stehen oben in [`scripts/proxmox-install.sh`](scripts/proxmox-install.sh).
+
+**Von Hand:**
+
+1. Template in den Template-Speicher laden:
+   ```sh
+   cd /var/lib/vz/template/cache
+   wget https://github.com/dertika/cratetab/releases/latest/download/cratetab-lxc-debian-13-amd64.tar.zst
+   ```
+   (Alternativ im Webinterface: *local → CT Templates → Upload*.)
+2. Container anlegen, im Webinterface (*Create CT*, Template auswählen, **Unprivileged** und
+   unter *Options → Features* **nesting** anhaken) oder auf der Shell:
+   ```sh
+   pct create 120 local:vztmpl/cratetab-lxc-debian-13-amd64.tar.zst \
+     --hostname cratetab --ostype debian --unprivileged 1 --features nesting=1 \
+     --cores 1 --memory 512 --rootfs local-lvm:4 \
+     --net0 name=eth0,bridge=vmbr0,ip=dhcp --onboot 1 --start 1
+   ```
+3. Admin-Passwort setzen und Vereinsnamen eintragen:
+   ```sh
+   pct exec 120 -- cratetab set-admin-password admin 'ein-gutes-passwort'
+   pct exec 120 -- nano /etc/cratetab/cratetab.env
+   pct exec 120 -- systemctl restart cratetab
+   ```
+
+Crate Tab läuft dann auf Port 8080 des Containers. Davor gehört ein
+[Reverse Proxy mit HTTPS](#reverse-proxy-mit-https). Für Port 80 direkt
+`CRATETAB_LISTEN="0.0.0.0:80"` in die Konfiguration schreiben.
+
+**Im Container** (`pct enter 120`):
+
+```sh
+systemctl status cratetab          # läuft es?
+journalctl -u cratetab -f          # Logs
+cratetab-backup                    # sofort ein Backup anlegen
+cratetab-update                    # auf die neueste Version aktualisieren
+cratetab check-balances            # Guthaben prüfen
+```
+
+`cratetab-update` lädt die neue Programmdatei von GitHub und prüft die Prüfsumme. Vorher legt
+es ein Backup an. Startet die neue Version nicht, stellt das Skript die alte wieder her.
+Betriebssystem-Updates laufen wie in jedem Debian-Container mit `apt update && apt upgrade`.
+
+### Variante B: LXC-Container mit Docker
 
 1. Im Proxmox-Webinterface **Create CT**:
-   - Template: *Debian 12* (vorher unter *local → CT Templates → Templates* herunterladen)
+   - Template: *Debian 13* (vorher unter *local → CT Templates → Templates* herunterladen)
    - Ressourcen: 1 CPU-Kern, 512 MB RAM, 4 GB Disk reichen
-   - Netzwerk: feste IP oder DHCP-Reservierung
    - **Unprivileged container** angehakt lassen
 2. Vor dem ersten Start unter *Options → Features* **nesting** und **keyctl** aktivieren,
-   damit Docker im Container läuft. Auf der Proxmox-Shell geht das auch so:
+   damit Docker im Container läuft:
    ```sh
    pct set <CTID> --features nesting=1,keyctl=1
    ```
@@ -143,7 +214,7 @@ Zwei Varianten sind sinnvoll. Für die meisten Vereine reicht ein LXC-Container.
    ```
 4. Weiter wie im [Schnellstart](#schnellstart).
 
-### Variante B: VM mit Docker
+### Variante C: VM mit Docker
 
 Wenn ihr ohnehin eine Docker-VM habt (z. B. Debian oder Ubuntu Server), installiert Docker dort
 wie gewohnt und folgt dem [Schnellstart](#schnellstart). Eine VM ist stärker isoliert, braucht
@@ -153,7 +224,17 @@ aber mehr RAM als ein LXC.
 
 Proxmox-Backups (vzdump) des Containers bzw. der VM sichern Crate Tab mit. Für eine sichere,
 konsistente Sicherung der Datenbank zusätzlich den Abschnitt [Backup](#backup-und-wiederherstellung)
-beachten.
+beachten. Beim LXC-Template (Variante A) liegen die täglichen Backups im Container und sind damit
+im vzdump enthalten.
+
+### Release veröffentlichen (für Maintainer)
+
+Ein Git-Tag `v*` startet den Workflow *Release*. Er baut die Programmdateien für amd64 und arm64
+sowie das LXC-Template, testet das Template und hängt alles an ein GitHub-Release:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
 
 ## Reverse Proxy mit HTTPS
 
@@ -239,7 +320,13 @@ zusätzlich in `cratetab.db-wal`, und eine Kopie im falschen Moment kann unvolls
 ### Konsistente Sicherung im laufenden Betrieb
 
 Crate Tab hat dafür einen eigenen Befehl. Er nutzt SQLites `VACUUM INTO` und erzeugt eine
-in sich stimmige Kopie, auch während gebucht wird:
+in sich stimmige Kopie, auch während gebucht wird.
+
+**LXC-Template:** Das passiert schon automatisch jede Nacht (`cratetab-backup.timer`), die Kopien
+liegen in `/var/lib/cratetab/backups/`. Von dort holt man sie z. B. auf den Proxmox-Host:
+`pct pull 120 /var/lib/cratetab/backups/<datei>.db /srv/backups/<datei>.db`.
+
+**Docker:**
 
 ```sh
 docker compose exec cratetab cratetab backup /data/backup-$(date +%F).db
@@ -259,6 +346,18 @@ Alternativen mit gleicher Sicherheit:
 
 ### Wiederherstellen
 
+LXC-Template (im Container):
+
+```sh
+systemctl stop cratetab
+cp /var/lib/cratetab/backups/cratetab-2026-10-01_031500.db /var/lib/cratetab/cratetab.db
+rm -f /var/lib/cratetab/cratetab.db-wal /var/lib/cratetab/cratetab.db-shm
+chown cratetab:cratetab /var/lib/cratetab/cratetab.db
+systemctl start cratetab
+```
+
+Docker:
+
 ```sh
 docker compose stop
 cp /srv/backups/cratetab/backup-2026-10-01.db data/cratetab.db
@@ -271,6 +370,10 @@ Nach einer Wiederherstellung (oder jederzeit) prüft
 `docker compose exec cratetab cratetab check-balances`, ob alle Guthaben zu den Buchungen passen.
 
 ## Update
+
+LXC-Template: `pct exec 120 -- cratetab-update` (siehe [Variante A](#variante-a-fertiges-lxc-template-ohne-docker-empfohlen)).
+
+Docker:
 
 ```sh
 cd /opt/cratetab
@@ -314,9 +417,11 @@ cratetab backup <ziel.db>                   # konsistente Sicherung
 cratetab seed-demo                          # Demo-Daten in leere Datenbank
 cratetab check-balances [--repair]          # Guthaben aus Buchungen nachrechnen
 cratetab set-admin-password <name> <pw>     # Admin-Passwort vergessen? Hiermit neu setzen
+cratetab --version                          # Version anzeigen
 ```
 
-Im Docker-Container wird `docker compose exec cratetab` davorgesetzt. Der Endpunkt `/health`
+Im Docker-Container wird `docker compose exec cratetab` davorgesetzt, im LXC-Template läuft `cratetab …` direkt
+in der Container-Konsole (`pct enter <id>`). Der Endpunkt `/health`
 liefert `ok`, solange die Datenbank erreichbar ist.
 
 ## Entwicklung
@@ -357,6 +462,8 @@ locales/         Übersetzungen (*.ftl)
 assets/          CSS, JavaScript, Logo, Flaggen, htmx, zxing
 migrations/      Datenbankschema (SQL, wird beim Start automatisch eingespielt)
 tests/           Tests
+packaging/lxc/   Bau des Proxmox-LXC-Templates (systemd-Dienst, Backup, Update)
+scripts/         proxmox-install.sh: Container auf dem Proxmox-Host anlegen
 docs/            weitere Doku, u. a. zum geplanten fnordcredit-Import
 ```
 

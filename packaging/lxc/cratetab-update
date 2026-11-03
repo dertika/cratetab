@@ -1,0 +1,58 @@
+#!/bin/sh
+# Aktualisiert Crate Tab im LXC-Container auf die neueste (oder eine bestimmte) Version.
+#
+#   cratetab-update           # neueste Version
+#   cratetab-update v0.2.0    # bestimmte Version
+#
+# Ablauf: Binärdatei von GitHub laden und Prüfsumme kontrollieren, Backup anlegen,
+# Dienst stoppen, Datei tauschen, Dienst starten. Schlägt der Start fehl, wird die
+# alte Version wiederhergestellt. Datenbank-Migrationen laufen beim Start automatisch.
+set -eu
+
+REPO="${CRATETAB_REPO:-dertika/cratetab}"
+case "$(uname -m)" in
+    x86_64) ARCH=amd64 ;;
+    aarch64) ARCH=arm64 ;;
+    *) echo "Nicht unterstützte Architektur: $(uname -m)" >&2; exit 1 ;;
+esac
+ASSET="cratetab-linux-$ARCH"
+
+if [ $# -ge 1 ]; then
+    BASE="https://github.com/$REPO/releases/download/$1"
+else
+    BASE="https://github.com/$REPO/releases/latest/download"
+fi
+
+BIN=/usr/local/lib/cratetab/cratetab
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+echo "Lade $BASE/$ASSET …"
+curl -fsSL -o "$tmp/$ASSET" "$BASE/$ASSET"
+curl -fsSL -o "$tmp/$ASSET.sha256" "$BASE/$ASSET.sha256"
+(cd "$tmp" && sha256sum -c "$ASSET.sha256")
+chmod 755 "$tmp/$ASSET"
+
+old_version=$("$BIN" --version 2>/dev/null || echo "?")
+new_version=$("$tmp/$ASSET" --version)
+echo "Installiert: $old_version, neu: $new_version"
+
+echo "Backup vor dem Update …"
+/usr/local/sbin/cratetab-backup
+
+systemctl stop cratetab
+cp "$BIN" "$BIN.previous"
+install -m 755 "$tmp/$ASSET" "$BIN"
+systemctl start cratetab
+
+sleep 3
+if systemctl is-active --quiet cratetab && /usr/local/bin/cratetab healthcheck >/dev/null; then
+    echo "Update erfolgreich: $new_version"
+else
+    echo "Neue Version startet nicht – stelle die alte Version wieder her." >&2
+    journalctl -u cratetab -n 20 --no-pager >&2 || true
+    systemctl stop cratetab || true
+    install -m 755 "$BIN.previous" "$BIN"
+    systemctl start cratetab
+    exit 1
+fi

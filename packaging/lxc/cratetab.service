@@ -1,0 +1,22 @@
+[Unit]
+Description=Crate Tab – Die Getränkekasse für euren Verein
+Documentation=https://github.com/dertika/cratetab
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cratetab
+Group=cratetab
+EnvironmentFile=/etc/cratetab/cratetab.env
+ExecStart=/usr/local/lib/cratetab/cratetab serve
+Restart=on-failure
+RestartSec=3
+# Erlaubt CRATETAB_LISTEN=0.0.0.0:80 ohne root
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+NoNewPrivileges=yes
+# Beim Beenden schreibt Crate Tab das SQLite-WAL zurück, dafür etwas Zeit lassen
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
