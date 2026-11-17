@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "macros.html" as m %}
 {% block title %}{{ ctx.t.t("register-title") }} · {% endblock %}
 {% block body_class %}kiosk kiosk-register{% endblock %}
 {% block content %}
@@ -11,9 +12,12 @@
 
     <p class="hint">{{ ctx.t.t("register-pin-hint") }}</p>
     <label for="pin">{{ ctx.t.t("pin-new") }}</label>
-    <input type="password" id="pin" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off">
+    <input type="password" id="pin" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8"
+           autocomplete="off" class="pin-input" data-digits-only data-keypad-field>
     <label for="pin_repeat">{{ ctx.t.t("pin-repeat") }}</label>
-    <input type="password" id="pin_repeat" name="pin_repeat" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off">
+    <input type="password" id="pin_repeat" name="pin_repeat" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8"
+           autocomplete="off" class="pin-input" data-digits-only data-keypad-field>
+    {% call m::keypad("pin", false) %}{% endcall %}
 
     <div class="form-actions">
       <a href="/" class="btn btn-secondary">{{ ctx.t.t("cancel") }}</a>

@@ -1,38 +1,130 @@
-# Import aus fnordcredit (geplant)
+# Umzug von fnordcredit
 
-Der Import aus dem alten fnordcredit (RethinkDB) ist **noch nicht umgesetzt**.
-Das Schema von Crate Tab ist aber schon darauf vorbereitet. Diese Seite hält
-fest, wie der Import später funktionieren soll.
+Crate Tab übernimmt Benutzer, Guthaben, PINs, Produkte und die komplette
+Buchungshistorie (mit Original-Zeitstempeln) aus dem alten **fnordcredit mit
+RethinkDB** (Versionen bis Anfang 2017).
 
-## Was schon vorbereitet ist
+## 1. Daten aus fnordcredit exportieren
 
-| Vorbereitung | Wo |
+> Tipp: fnordcredit vorher stoppen, damit während des Exports niemand bucht.
+
+**Variante A – mit dem Skript aus diesem Repository (empfohlen, kein Python nötig).**
+Es nutzt den RethinkDB-Treiber und die `config.js` der vorhandenen
+fnordcredit-Installation, passt also immer zur Version eures Servers:
+
+```sh
+curl -fsSL -o /root/fnordcredit-export.js \
+  https://raw.githubusercontent.com/dertika/cratetab/main/scripts/fnordcredit-export.js
+cd /pfad/zu/fnordcredit            # dort, wo config.js und node_modules liegen
+node /root/fnordcredit-export.js /root/fnordcredit-export
+```
+
+Wo fnordcredit liegt, verrät z. B. `find / -name config.js -path '*fnordcredit*' -not -path '*/node_modules/*'`.
+
+**Variante B – mit `rethinkdb export`.** Das braucht den Python-Treiber von
+RethinkDB (sonst: „The rethinkdb-export command depends on the RethinkDB Python
+driver“). Der aktuelle Treiber spricht nur mit RethinkDB ab Version 2.3:
+
+```sh
+python3 -m venv /root/rdb && /root/rdb/bin/pip install rethinkdb
+PATH=/root/rdb/bin:$PATH rethinkdb export -e fnordcredit --format json -d /root/fnordcredit-export
+```
+
+Beide Varianten liefern dasselbe: `fnordcredit/users.json`, `transactions.json`
+und (falls vorhanden) `products.json`. Danach einpacken:
+
+```sh
+cd /root && tar czf fnordcredit-export.tar.gz fnordcredit-export
+```
+
+## 2. Crate Tab frisch aufsetzen
+
+Der Import läuft nur in eine **leere** Datenbank, also ohne Benutzer, Artikel
+und Buchungen. Admin-Zugänge dürfen schon existieren. Demo-Daten deshalb
+ausschalten (`CRATETAB_SEED_DEMO=false`).
+
+## 3. Probelauf
+
+Der Probelauf liest alles, führt den kompletten Import durch und rollt ihn am
+Ende zurück. Es wird nichts gespeichert, aber ihr seht genau, was passieren würde.
+
+**LXC-Template** (auf dem Proxmox-Host, Container-ID 120):
+
+```sh
+pct push 120 fnordcredit-export.tar.gz /tmp/fnordcredit-export.tar.gz
+pct exec 120 -- tar xzf /tmp/fnordcredit-export.tar.gz -C /tmp
+pct exec 120 -- cratetab import-fnordcredit /tmp/fnordcredit-export --dry-run
+```
+
+**Docker:**
+
+```sh
+tar xzf fnordcredit-export.tar.gz -C data/      # landet in ./data, also /data im Container
+docker compose exec cratetab cratetab import-fnordcredit /data/fnordcredit-export --dry-run
+```
+
+**Direkt** (ohne Container): `CRATETAB_DATABASE=… cratetab import-fnordcredit <ordner> --dry-run`
+
+## 4. Bericht prüfen
+
+Beispiel:
+
+```
+PROBELAUF – es wurde nichts gespeichert.
+
+Benutzer:   42
+Artikel:    9 (mit 14 Barcodes)
+Buchungen:  18317 (16890 Käufe, 1427 Aufladungen), 02.06.2014 bis 24.02.2017
+Ausgleichsbuchungen: 3
+Summe aller Guthaben: alt 412,30 €, neu 412,30 € ✓
+PINs übernommen: 17 (werden beim ersten Login auf argon2 umgestellt)
+
+Hinweise:
+  Ausgleichsbuchungen (3):
+    - Ada: Kontostand 12,34 €, Summe der Buchungen 0,00 €, Ausgleich 12,34 €
+  …
+```
+
+Was die Hinweise bedeuten:
+
+| Hinweis | Bedeutung |
 |---|---|
-| Spalte `legacy_id` (UNIQUE) in `users`, `articles` und `transactions`, damit alte IDs erhalten bleiben und ein zweiter Import nichts doppelt anlegt | `migrations/0001_initial.sql` |
-| Zeitstempel als Text (`YYYY-MM-DDTHH:MM:SSZ`), Original-Zeitstempel lassen sich direkt übernehmen | `migrations/0001_initial.sql`, `db::to_db_time` |
-| Spalte `transactions.note` für die alte Beschreibung einer Buchung | `migrations/0001_initial.sql` |
-| `ledger::record_imported()` schreibt eine historische Buchung mit vorgegebenem Zeitstempel und `legacy_id` und passt das Guthaben in derselben DB-Transaktion an (ohne Prüfung des Minimalguthabens) | `src/ledger.rs` |
-| `cratetab check-balances` prüft nach dem Import, ob alle Guthaben zur Buchungshistorie passen | `src/main.rs` |
+| **Ausgleichsbuchungen** | Die Summe der Buchungen passt nicht zum Kontostand in fnordcredit, z. B. bei Benutzern aus der Zeit vor der Buchungshistorie oder nach Änderungen direkt in der Datenbank. Eine Korrekturbuchung „Import fnordcredit: Ausgleich auf den alten Kontostand“ gleicht die Differenz aus. Danach stimmt jedes Guthaben auf den Cent. |
+| **Umbenannt** | fnordcredit unterscheidet „Max“ und „max“, Crate Tab nicht. Der zweite Name bekommt einen Zusatz („max (2)“). Namen über 40 Zeichen werden gekürzt. Umbenennen geht danach im Admin-Bereich. |
+| **Buchungen ohne Benutzer** | Buchungen zu Benutzern, die in fnordcredit gelöscht wurden. Sie werden als deaktivierte Benutzer angelegt, damit die Historie vollständig bleibt. |
+| **Hatten einen Token** | Die Anmeldung per Karte/Token gibt es in Crate Tab nicht, der Token entfällt. |
+| **Eigene Schuldengrenzen** | `debtAllowed`/`debtHardLimit` pro Benutzer entfallen. Es gilt das globale `CRATETAB_MIN_BALANCE`. |
+| **Produkte, die es nicht mehr gibt** | Käufe eines gelöschten oder umbenannten Produkts. Sie bleiben mit Produktname, aber ohne Artikel-Verknüpfung erhalten. In der Statistik erscheinen sie daher nicht pro Artikel. |
+| **Passten nicht zum vorherigen Kontostand** | Rein informativ: In fnordcredit stand bei diesen Buchungen ein Kontostand, der nicht zur Rechnung passt. |
 
-## Geplanter Ablauf
+## 5. Import
 
-1. In fnordcredit die Tabellen als JSON exportieren, z. B. mit
-   `rethinkdb export -e fnordcredit.users -e fnordcredit.transactions --format json`.
-2. Neuer Befehl `cratetab import-fnordcredit <export-verzeichnis>`:
-   * Benutzer anlegen: `name` → `users.name`, RethinkDB-`id` → `users.legacy_id`.
-     Die alten PINs liegen bei fnordcredit nicht als argon2-Hash vor. Betroffene
-     Benutzer bekommen deshalb keine PIN und setzen sie am Kiosk neu.
-   * Buchungen in zeitlicher Reihenfolge mit `ledger::record_imported()` übernehmen:
-     `delta` (Euro, Kommazahl) wird **exakt** in Cent umgerechnet (Rundung prüfen!),
-     `time` → `created_at`, `description` → `note`, `id` → `legacy_id`.
-     Positive Beträge werden zu `deposit`, negative zu `purchase` (ohne Artikel-ID).
-   * Weicht das Ergebnis vom Kontostand `credit` in fnordcredit ab, wird pro
-     Benutzer eine `correction`-Buchung mit Begründung „Import fnordcredit:
-     Ausgleich“ angelegt, damit das Guthaben exakt stimmt.
-   * Alles läuft in einer einzigen DB-Transaktion: Bei einem Fehler bleibt die
-     Datenbank unverändert.
-3. Danach `cratetab check-balances` ausführen.
+Denselben Befehl ohne `--dry-run` ausführen. Alles läuft in einer einzigen
+Datenbank-Transaktion: Bei einem Fehler bleibt die Datenbank unverändert. Ein
+zweiter Import wird abgelehnt.
 
-Offene Fragen für später: Welche fnordcredit-Version genau im Einsatz ist
-(Feldnamen unterscheiden sich zwischen Versionen) und ob Produkte/Barcodes aus
-fnordcredit ebenfalls übernommen werden sollen.
+Danach:
+
+```sh
+cratetab check-balances        # bzw. mit pct exec / docker compose exec davor
+```
+
+und den Export wieder löschen (er enthält PIN-Hashes): `rm -rf /tmp/fnordcredit-export*`.
+
+## Was wie übernommen wird
+
+| fnordcredit | Crate Tab |
+|---|---|
+| `users.name` | Benutzername, alter Name als `legacy_id` |
+| `users.credit` | Guthaben (über Buchungen + ggf. Ausgleichsbuchung) |
+| `users.pincode` | PIN bleibt gültig. Beim ersten Login wird sie auf argon2 umgestellt. Alte PINs dürfen länger als 8 Ziffern sein. Crate Tab akzeptiert nur Ziffern: Wer in fnordcredit eine PIN mit Buchstaben hatte, bekommt im Admin-Bereich eine neue (*Benutzer → PIN zurücksetzen*). |
+| `transactions` mit `delta > 0` | Aufladung |
+| `transactions` mit `delta < 0` | Kauf, mit Artikel, wenn `product` zu einem Produkt passt (Groß-/Kleinschreibung egal) |
+| `transactions.description` | Notiz der Buchung |
+| `transactions.time` / `id` | Original-Zeitstempel / `legacy_id` |
+| `products` | Artikel mit Preis, Sortierung nach `order`, `ean` (durch `\|` getrennt) als Barcodes |
+| Buchungen über 0,00 € | übersprungen (werden gezählt) |
+
+Beträge sind in fnordcredit Kommazahlen. Sie werden einzeln auf Cent gerundet.
+Die Ausgleichsbuchungen sorgen dafür, dass am Ende jedes Guthaben genau dem
+alten Kontostand entspricht.

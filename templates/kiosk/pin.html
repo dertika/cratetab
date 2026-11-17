@@ -9,7 +9,8 @@
   <p>{{ ctx.t.t("pin-prompt") }}</p>
   {% if let Some(e) = error %}<div class="flash flash-error" role="alert">{{ e }}</div>{% endif %}
   <form method="post" action="/u/{{ user.id }}/pin" class="pin-form">
-    <input type="password" id="pin" name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="8"
+    {#- Nur Ziffern, aber bewusst ohne 8er-Grenze: aus fnordcredit übernommene PINs können länger sein -#}
+    <input type="password" id="pin" name="pin" inputmode="numeric" maxlength="64" data-digits-only
            autocomplete="off" required class="pin-input" aria-label="{{ ctx.t.t("pin-label") }}">
     {% call m::keypad("pin", false) %}{% endcall %}
     <button type="submit" class="btn btn-primary btn-big">{{ ctx.t.t("pin-submit") }}</button>

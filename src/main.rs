@@ -6,7 +6,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use anyhow::{Context, Result, bail};
-use cratetab::{admins, config::Config, db, ledger, seed, sessions};
+use cratetab::{admins, config::Config, db, fnordcredit, ledger, seed, sessions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing_subscriber::EnvFilter;
 
@@ -20,6 +20,8 @@ Aufruf:
   cratetab seed-demo                       Demo-Daten anlegen (nur in leerer Datenbank)
   cratetab check-balances [--repair]       Guthaben aus den Buchungen nachrechnen
   cratetab set-admin-password <name> <pw>  Admin-Passwort setzen (legt den Admin bei Bedarf an)
+  cratetab import-fnordcredit <ordner> [--dry-run]
+                                           Daten aus fnordcredit übernehmen (RethinkDB-Export)
   cratetab --version                       Version anzeigen
   cratetab help                            Diese Hilfe
 
@@ -113,6 +115,25 @@ async fn main() -> Result<()> {
                     println!("Admin „{name}“ angelegt.");
                 }
             }
+            Ok(())
+        }
+        Some("import-fnordcredit") => {
+            let dir = args
+                .get(1)
+                .filter(|a| !a.starts_with("--"))
+                .context("Aufruf: cratetab import-fnordcredit <export-ordner> [--dry-run]")?;
+            let dry_run = args.iter().any(|a| a == "--dry-run");
+            let export = fnordcredit::load_export(&PathBuf::from(dir))?;
+            for f in &export.files {
+                println!("Gelesen: {}", f.display());
+            }
+            let pool = db::connect(&config.database_path).await?;
+            let report = fnordcredit::import(&pool, &export, dry_run).await?;
+            println!("\n{report}");
+            if dry_run {
+                println!("Zum Übernehmen denselben Befehl ohne --dry-run ausführen.");
+            }
+            pool.close().await;
             Ok(())
         }
         Some("help" | "--help" | "-h") => {

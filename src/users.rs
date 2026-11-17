@@ -221,6 +221,20 @@ pub async fn check_pin(pool: &SqlitePool, id: i64, pin: &str) -> Result<PinCheck
         .bind(id)
         .execute(pool)
         .await?;
+        // Aus fnordcredit übernommene PIN: jetzt, wo wir sie kennen, sicher neu hashen
+        if password::needs_rehash(&hash) {
+            match password::hash(pin) {
+                Ok(new_hash) => {
+                    sqlx::query("UPDATE users SET pin_hash = ? WHERE id = ?")
+                        .bind(new_hash)
+                        .bind(id)
+                        .execute(pool)
+                        .await?;
+                    tracing::info!("Alte fnordcredit-PIN von Benutzer #{id} auf argon2 umgestellt");
+                }
+                Err(e) => tracing::warn!("PIN von Benutzer #{id} neu hashen: {e}"),
+            }
+        }
         return Ok(PinCheck::Ok);
     }
 
