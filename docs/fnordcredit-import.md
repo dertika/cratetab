@@ -19,6 +19,12 @@ cd /pfad/zu/fnordcredit            # dort, wo config.js und node_modules liegen
 node /root/fnordcredit-export.js /root/fnordcredit-export
 ```
 
+Das Skript packt auch die **Produktbilder** in den Export. Gemeint ist das
+Feld `image` der Produkte: Dateien unter `static/` der Installation werden
+gelesen, http(s)-Adressen heruntergeladen (ab Node.js 18). Am Ende nennt es
+die Bilder, die es nicht gefunden hat. Mit `rethinkdb export` (Variante B)
+kommen nur die Pfade mit, nicht die Bilder.
+
 Wo fnordcredit liegt, verrät z. B. `find / -name config.js -path '*fnordcredit*' -not -path '*/node_modules/*'`.
 
 **Variante B – mit `rethinkdb export`.** Das braucht den Python-Treiber von
@@ -144,6 +150,7 @@ und den Export wieder löschen (er enthält PIN-Hashes): `rm -rf /tmp/fnordcredi
 | `transactions.description` | Notiz der Buchung |
 | `transactions.time` / `id` | Original-Zeitstempel / `legacy_id` |
 | `products` | Artikel mit Preis, Sortierung nach `order`, `ean` (durch `\|` getrennt) als Barcodes |
+| `products.image` | Artikelbild (PNG, JPEG, GIF, WebP bis 5 MB). SVG und fehlende Dateien nennt der Bericht, die Bilder lassen sich später im Admin-Bereich hochladen. |
 | Buchungen über 0,00 € | übersprungen (werden gezählt) |
 
 Beträge sind in fnordcredit Kommazahlen. Sie werden einzeln auf Cent gerundet.

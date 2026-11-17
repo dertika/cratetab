@@ -351,3 +351,71 @@ async fn replace_existing_data() {
     pool.close().await;
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn product_images() {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    let png = b"\x89PNG\r\n\x1a\n-fake-png-data".to_vec();
+    let jpeg = b"\xff\xd8\xff\xe0-fake-jpeg".to_vec();
+
+    let dir = temp_dir("images");
+    let db_dir = dir.join("fnordcredit");
+    std::fs::create_dir_all(&db_dir).unwrap();
+    std::fs::write(
+        db_dir.join("users.json"),
+        r#"[{"name": "Ada", "credit": 0}]"#,
+    )
+    .unwrap();
+    std::fs::write(db_dir.join("transactions.json"), "[]").unwrap();
+    let products = json!([
+        // vom Export-Skript eingebettet
+        {"name": "Mate", "price": 1.5, "order": 1, "image": "img/mate.png",
+         "_image": {"file": "mate.png", "base64": STANDARD.encode(&png)}},
+        // data:-URI direkt in fnordcredit
+        {"name": "Cola", "price": 1.2, "order": 2,
+         "image": format!("data:image/jpeg;base64,{}", STANDARD.encode(&jpeg))},
+        // SVG wird nicht übernommen
+        {"name": "Bier", "price": 1.8, "order": 3, "image": "img/bier.svg",
+         "_image": {"file": "bier.svg", "base64": STANDARD.encode(b"<svg/>")}},
+        // nur der Pfad, Datei fehlt (z. B. mit „rethinkdb export“ exportiert)
+        {"name": "Saft", "price": 1.0, "order": 4, "image": "img/saft.png"},
+        // ohne Bild
+        {"name": "Wasser", "price": 0.8, "order": 5}
+    ]);
+    std::fs::write(db_dir.join("products.json"), products.to_string()).unwrap();
+
+    let export = fnordcredit::load_export(&dir).unwrap();
+    let pool = db::connect_memory().await.unwrap();
+    let report = fnordcredit::import(&pool, &export, false, fnordcredit::ImportMode::EmptyOnly)
+        .await
+        .unwrap();
+    assert_eq!(report.images, 2);
+    let skipped: Vec<(&str, fnordcredit::ImageSkipReason)> = report
+        .images_skipped
+        .iter()
+        .map(|s| (s.article.as_str(), s.reason))
+        .collect();
+    assert_eq!(
+        skipped,
+        vec![
+            ("Bier", fnordcredit::ImageSkipReason::Unsupported),
+            ("Saft", fnordcredit::ImageSkipReason::Missing)
+        ]
+    );
+
+    let images: Vec<(String, String, Vec<u8>)> = sqlx::query_as(
+        "SELECT a.name, i.mime_type, i.data FROM articles a
+         JOIN article_images i ON i.article_id = a.id ORDER BY a.sort_order",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(images.len(), 2);
+    assert_eq!(images[0], ("Mate".into(), "image/png".into(), png));
+    assert_eq!(images[1], ("Cola".into(), "image/jpeg".into(), jpeg));
+    // Der Kiosk zeigt die Bilder über die normale Bild-URL
+    let mate = articles::list_active(&pool, "de").await.unwrap().remove(0);
+    assert!(mate.image_url().is_some());
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

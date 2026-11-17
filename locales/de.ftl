@@ -305,6 +305,16 @@ import-deposits =
         [one] 1 Aufladung
        *[other] { $count } Aufladungen
     }
+import-images =
+    { $count ->
+        [one] 1 Bild
+       *[other] { $count } Bilder
+    }
+import-hint-images = Bilder nicht übernommen
+import-hint-images-text = Fehlende Bilder: den Export mit der aktuellen Version von scripts/fnordcredit-export.js wiederholen. Alle Bilder lassen sich auch später im Admin-Bereich beim Artikel hochladen.
+import-image-missing = Bilddatei fehlt im Export
+import-image-unsupported = Format nicht unterstützt (nur PNG, JPEG, GIF, WebP)
+import-image-too-large = Bild ist zu groß
 import-pins = PINs übernommen
 import-pins-hint = werden beim ersten Login auf argon2 umgestellt
 import-total-old = Summe aller Guthaben in fnordcredit

@@ -394,6 +394,7 @@ dependencies = [
  "askama",
  "axum",
  "axum-extra",
+ "base64",
  "chrono",
  "chrono-tz",
  "cookie",
