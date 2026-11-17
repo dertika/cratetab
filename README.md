@@ -26,6 +26,7 @@ besteht aus **einer einzigen Programmdatei** mit **einer SQLite-Datei** als Date
 - [Kiosk auf dem Raspberry Pi](#kiosk-auf-dem-raspberry-pi)
 - [Backup und Wiederherstellung](#backup-und-wiederherstellung)
 - [Update](#update)
+- [Umzug von fnordcredit](#umzug-von-fnordcredit)
 - [Neue Sprache hinzufügen](#neue-sprache-hinzufügen)
 - [Hilfsbefehle](#hilfsbefehle)
 - [Entwicklung](#entwicklung)
@@ -388,6 +389,24 @@ zeigt `docker compose logs -f`.
 Image-Tags: `latest` ist die neueste veröffentlichte Version, `1.2` bzw. `1.2.3` eine feste
 Version, `edge` der aktuelle Stand von `main`.
 
+## Umzug von fnordcredit
+
+Crate Tab übernimmt aus dem alten fnordcredit (RethinkDB) Benutzer, Guthaben, PINs, Produkte mit
+Barcodes und die komplette Buchungshistorie mit Original-Zeitstempeln:
+
+```sh
+rethinkdb export -e fnordcredit --format json -d fnordcredit-export     # auf dem alten Server
+cratetab import-fnordcredit fnordcredit-export --dry-run                # Probelauf mit Bericht
+cratetab import-fnordcredit fnordcredit-export                          # Import
+```
+
+Der Import läuft nur in eine leere Datenbank (ohne Demo-Daten) und vollständig in einer
+Datenbank-Transaktion. Passt die Summe der Buchungen eines Benutzers nicht zu seinem alten
+Kontostand, gleicht eine Korrekturbuchung die Differenz aus. Alte PINs bleiben gültig und werden
+beim ersten Login auf argon2 umgestellt. Die Schritt-für-Schritt-Anleitung für LXC und Docker
+und die Bedeutung aller Hinweise im Bericht stehen in
+[docs/fnordcredit-import.md](docs/fnordcredit-import.md).
+
 ## Neue Sprache hinzufügen
 
 Alle Texte stehen in `locales/<sprachcode>.ftl` im [Fluent-Format](https://projectfluent.org/).
@@ -417,6 +436,7 @@ cratetab backup <ziel.db>                   # konsistente Sicherung
 cratetab seed-demo                          # Demo-Daten in leere Datenbank
 cratetab check-balances [--repair]          # Guthaben aus Buchungen nachrechnen
 cratetab set-admin-password <name> <pw>     # Admin-Passwort vergessen? Hiermit neu setzen
+cratetab import-fnordcredit <ordner> [--dry-run]   # Daten aus fnordcredit übernehmen
 cratetab --version                          # Version anzeigen
 ```
 
@@ -452,6 +472,7 @@ src/
   password.rs    argon2
   i18n.rs        Übersetzungen (Fluent)
   seed.rs        Demo-Daten
+  fnordcredit.rs Import aus fnordcredit (RethinkDB-Export)
   web/
     mod.rs       Router, Seitenkontext, Fehlerbehandlung, Sicherheits-Header
     kiosk.rs     Kiosk-Seiten
@@ -464,17 +485,11 @@ migrations/      Datenbankschema (SQL, wird beim Start automatisch eingespielt)
 tests/           Tests
 packaging/lxc/   Bau des Proxmox-LXC-Templates (systemd-Dienst, Backup, Update)
 scripts/         proxmox-install.sh: Container auf dem Proxmox-Host anlegen
-docs/            weitere Doku, u. a. zum geplanten fnordcredit-Import
+docs/            weitere Doku, u. a. zum Umzug von fnordcredit
 ```
 
 Eine Datenbankänderung bekommt eine neue Datei `migrations/0002_beschreibung.sql`.
 Bereits veröffentlichte Migrationen werden nie geändert.
-
-### Import aus fnordcredit
-
-Der Import der alten Daten (Benutzer, Guthaben, Buchungshistorie mit Original-Zeitstempeln)
-ist vorbereitet, aber noch nicht umgesetzt. Details stehen in
-[docs/fnordcredit-import.md](docs/fnordcredit-import.md).
 
 ## Drittanbieter
 

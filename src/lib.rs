@@ -19,12 +19,14 @@
 //! | [`assets`]   | eingebettete statische Dateien                            |
 //! | [`web`]      | HTTP-Routen und Seiten                                    |
 //! | [`seed`]     | Demo-Daten                                                |
+//! | [`fnordcredit`] | Import aus dem alten fnordcredit (RethinkDB-Export)    |
 
 pub mod admins;
 pub mod articles;
 pub mod assets;
 pub mod config;
 pub mod db;
+pub mod fnordcredit;
 pub mod i18n;
 pub mod ledger;
 pub mod money;
