@@ -297,6 +297,16 @@ import-deposits =
         [one] 1 recharge
        *[other] { $count } recharges
     }
+import-images =
+    { $count ->
+        [one] 1 image
+       *[other] { $count } images
+    }
+import-hint-images = Images non reprises
+import-hint-images-text = Images manquantes : refaire l’export avec la version actuelle de scripts/fnordcredit-export.js. Toutes les images peuvent aussi être envoyées plus tard pour l’article dans l’espace admin.
+import-image-missing = fichier image absent de l’export
+import-image-unsupported = format non pris en charge (uniquement PNG, JPEG, GIF, WebP)
+import-image-too-large = image trop grande
 import-pins = Codes PIN repris
 import-pins-hint = convertis en argon2 lors de la première connexion
 import-total-old = Somme de tous les soldes dans fnordcredit

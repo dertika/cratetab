@@ -296,6 +296,16 @@ import-deposits =
         [one] 1 top-up
        *[other] { $count } top-ups
     }
+import-images =
+    { $count ->
+        [one] 1 image
+       *[other] { $count } images
+    }
+import-hint-images = Images not taken over
+import-hint-images-text = Missing images: repeat the export with the current version of scripts/fnordcredit-export.js. All images can also be uploaded later for the article in the admin area.
+import-image-missing = image file missing in the export
+import-image-unsupported = format not supported (only PNG, JPEG, GIF, WebP)
+import-image-too-large = image is too large
 import-pins = PINs taken over
 import-pins-hint = converted to argon2 on first login
 import-total-old = Sum of all balances in fnordcredit

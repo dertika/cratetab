@@ -11,7 +11,9 @@
 //! * `transactions`: `id`, `username`, `delta` (Euro), `credit` (Kontostand
 //!   danach), `time`, `description`, `product` (Produktname oder `null`)
 //! * `products`: `name`, `price`, `description`, `ean` (mehrere durch `|`
-//!   getrennt), `order`
+//!   getrennt), `order`, `image` (Pfad unter `static/`, URL oder data:-URI).
+//!   `scripts/fnordcredit-export.js` legt die Bilddatei zusätzlich als
+//!   `_image: {file, base64}` in das Produkt.
 //!
 //! Regeln des Imports:
 //! * Läuft nur in eine Datenbank ohne Benutzer, Artikel und Buchungen.
@@ -77,6 +79,31 @@ pub struct LegacyProduct {
     pub price_cents: i64,
     pub eans: Vec<String>,
     pub order: Option<i64>,
+    /// Bildangabe in fnordcredit (Pfad oder URL), für den Bericht
+    pub image_ref: Option<String>,
+    /// Bilddaten, falls im Export enthalten
+    pub image_data: Option<Vec<u8>>,
+}
+
+/// Größtes Bild, das der Import übernimmt (größere werden gemeldet).
+pub const MAX_IMPORTED_IMAGE_BYTES: usize = 5 * 1024 * 1024;
+
+/// Bilddaten eines Produkts: aus `_image.base64` (Export-Skript) oder einer
+/// data:-URI im Feld `image`.
+fn product_image(doc: &Value) -> Option<Vec<u8>> {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    let embedded = doc
+        .get("_image")
+        .and_then(|i| i.get("base64"))
+        .and_then(Value::as_str);
+    let from_data_uri = doc
+        .get("image")
+        .and_then(Value::as_str)
+        .filter(|s| s.starts_with("data:"))
+        .and_then(|s| s.split_once(";base64,").map(|(_, data)| data));
+    let encoded = embedded.or(from_data_uri)?;
+    let cleaned: String = encoded.chars().filter(|c| !c.is_whitespace()).collect();
+    STANDARD.decode(cleaned).ok()
 }
 
 /// Der eingelesene Export.
@@ -244,6 +271,8 @@ fn parse_product(doc: &Value) -> Result<LegacyProduct, String> {
         price_cents: price_cents.abs(),
         eans,
         order: doc.get("order").and_then(Value::as_f64).map(|o| o as i64),
+        image_ref: value_string(doc.get("image")),
+        image_data: product_image(doc),
     })
 }
 
@@ -401,6 +430,37 @@ pub enum ImportMode {
     Replace,
 }
 
+/// Warum ein Produktbild nicht übernommen wurde.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImageSkipReason {
+    /// Nur der Pfad steht im Export, die Datei fehlt (z. B. „rethinkdb export“)
+    Missing,
+    /// Kein PNG, JPEG, GIF oder WebP (z. B. SVG)
+    Unsupported,
+    /// Größer als [`MAX_IMPORTED_IMAGE_BYTES`]
+    TooLarge,
+}
+
+/// Ein Produktbild, das nicht übernommen wurde.
+#[derive(Debug, Clone)]
+pub struct SkippedImage {
+    pub article: String,
+    /// Bildangabe aus fnordcredit (gekürzt)
+    pub reference: String,
+    pub reason: ImageSkipReason,
+}
+
+impl SkippedImage {
+    /// Übersetzungsschlüssel für den Grund
+    pub fn reason_key(&self) -> &'static str {
+        match self.reason {
+            ImageSkipReason::Missing => "import-image-missing",
+            ImageSkipReason::Unsupported => "import-image-unsupported",
+            ImageSkipReason::TooLarge => "import-image-too-large",
+        }
+    }
+}
+
 /// Ergebnis des Imports (bzw. Probelaufs).
 #[derive(Debug, Default)]
 pub struct ImportReport {
@@ -420,6 +480,8 @@ pub struct ImportReport {
     pub users_with_debt_limits: Vec<DebtLimit>,
     pub articles: usize,
     pub barcodes: usize,
+    pub images: usize,
+    pub images_skipped: Vec<SkippedImage>,
     pub barcodes_skipped: Vec<SkippedBarcode>,
     pub transactions: usize,
     pub purchases: usize,
@@ -487,6 +549,7 @@ impl ImportReport {
             && self.users_with_debt_limits.is_empty()
             && self.unknown_products.is_empty()
             && self.barcodes_skipped.is_empty()
+            && self.images_skipped.is_empty()
             && self.unreadable.is_empty())
             || self.skipped_zero > 0
             || self.skipped_without_time > 0
@@ -521,8 +584,8 @@ impl fmt::Display for ImportReport {
         writeln!(f, "Benutzer:   {}", self.users)?;
         writeln!(
             f,
-            "Artikel:    {} (mit {} Barcodes)",
-            self.articles, self.barcodes
+            "Artikel:    {} (mit {} Barcodes, {} Bildern)",
+            self.articles, self.barcodes, self.images
         )?;
         writeln!(
             f,
@@ -619,6 +682,19 @@ impl fmt::Display for ImportReport {
             })
             .collect();
         list(f, "Barcodes übersprungen", &barcodes)?;
+        let images: Vec<String> = self
+            .images_skipped
+            .iter()
+            .map(|i| {
+                let reason = match i.reason {
+                    ImageSkipReason::Missing => "Datei fehlt im Export",
+                    ImageSkipReason::Unsupported => "Format nicht unterstützt",
+                    ImageSkipReason::TooLarge => "zu groß",
+                };
+                format!("{} ({}): {reason}", i.article, i.reference)
+            })
+            .collect();
+        list(f, "Bilder nicht übernommen", &images)?;
         let unreadable: Vec<String> = self
             .unreadable
             .iter()
@@ -804,6 +880,46 @@ pub async fn import(
                 barcode_owner.insert(code, name.clone());
                 report.barcodes += 1;
             }
+        }
+
+        // Produktbild (aus dem Export-Skript oder einer data:-URI)
+        let reference = p.image_ref.clone().unwrap_or_default();
+        let reference = if reference.starts_with("data:") {
+            "data:…".to_string()
+        } else {
+            reference.chars().take(120).collect()
+        };
+        let skip = |reason| SkippedImage {
+            article: name.clone(),
+            reference: reference.clone(),
+            reason,
+        };
+        match &p.image_data {
+            Some(data) if data.len() > MAX_IMPORTED_IMAGE_BYTES => {
+                report.images_skipped.push(skip(ImageSkipReason::TooLarge));
+            }
+            Some(data) => match articles::detect_image_type(data) {
+                Some(mime) => {
+                    sqlx::query(
+                        "INSERT INTO article_images (article_id, mime_type, data, updated_at)
+                         VALUES (?, ?, ?, ?)",
+                    )
+                    .bind(id)
+                    .bind(mime)
+                    .bind(data.as_slice())
+                    .bind(Utc::now().format("%Y%m%d%H%M%S%f").to_string())
+                    .execute(&mut *tx)
+                    .await?;
+                    report.images += 1;
+                }
+                None => report
+                    .images_skipped
+                    .push(skip(ImageSkipReason::Unsupported)),
+            },
+            None if p.image_ref.is_some() => {
+                report.images_skipped.push(skip(ImageSkipReason::Missing));
+            }
+            None => {}
         }
     }
     let article_by_lower: HashMap<String, i64> = article_by_name

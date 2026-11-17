@@ -38,7 +38,8 @@
     <div class="stat-card">
       <span class="stat-label">{{ ctx.t.t("import-articles") }}</span>
       <span class="stat-value">{{ r.articles }}</span>
-      <span class="hint">{{ ctx.t.tn("import-barcodes", "count", r.barcodes as i64) }}</span>
+      <span class="hint">{{ ctx.t.tn("import-barcodes", "count", r.barcodes as i64) }},
+        {{ ctx.t.tn("import-images", "count", r.images as i64) }}</span>
     </div>
     <div class="stat-card">
       <span class="stat-label">{{ ctx.t.t("import-transactions") }}</span>
@@ -161,6 +162,18 @@
       <li>{{ b.code }} ({{ b.article }}): {% if let Some(owner) = b.owner %}{{ ctx.t.t1("import-barcode-taken", "article", owner) }}{% else %}{{ ctx.t.t("import-barcode-invalid") }}{% endif %}</li>
       {%- endfor %}
     </ul>
+  </details>
+  {% endif %}
+
+  {% if !r.images_skipped.is_empty() %}
+  <details class="card" open>
+    <summary><strong>{{ ctx.t.t("import-hint-images") }} ({{ r.images_skipped.len() }})</strong></summary>
+    <ul>
+      {%- for i in r.images_skipped %}
+      <li>{{ i.article }}{% if !i.reference.is_empty() %} (<code>{{ i.reference }}</code>){% endif %}: {{ ctx.t.t(i.reason_key()) }}</li>
+      {%- endfor %}
+    </ul>
+    <p class="hint">{{ ctx.t.t("import-hint-images-text") }}</p>
   </details>
   {% endif %}
 

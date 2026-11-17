@@ -34,6 +34,7 @@ sha1 = "0.11"
 
 # Hilfsbibliotheken
 anyhow = "1"
+base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 chrono-tz = "0.10"
 csv = "1"
