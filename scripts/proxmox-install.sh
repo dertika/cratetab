@@ -9,7 +9,8 @@
 #
 #   CTID              Container-ID                  (Standard: nächste freie)
 #   CT_HOSTNAME       Hostname                      (cratetab)
-#   STORAGE           Speicher für die Disk         (local-lvm)
+#   STORAGE           Speicher für die Disk         (local-lvm, sonst der erste
+#                                                    aktive Speicher für Container)
 #   TEMPLATE_STORAGE  Speicher für Templates        (local)
 #   DISK              Diskgröße in GB               (4)
 #   MEMORY            RAM in MB                     (512)
@@ -26,7 +27,7 @@ set -euo pipefail
 REPO="${REPO:-dertika/cratetab}"
 VERSION="${VERSION:-latest}"
 CT_HOSTNAME="${CT_HOSTNAME:-cratetab}"
-STORAGE="${STORAGE:-local-lvm}"
+STORAGE="${STORAGE:-}"
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"
 DISK="${DISK:-4}"
 MEMORY="${MEMORY:-512}"
@@ -42,6 +43,26 @@ die() { printf '\033[1;31mFehler:\033[0m %s\n' "$*" >&2; exit 1; }
 command -v pct >/dev/null || die "Dieses Skript muss auf einem Proxmox-Host laufen."
 [ "$(id -u)" = 0 ] || die "Bitte als root ausführen."
 [ "$(uname -m)" = x86_64 ] || die "Das Template gibt es nur für amd64."
+
+# Aktive Speicher, die den gewünschten Inhalt aufnehmen (rootdir, vztmpl)
+storages_for() { pvesm status --content "$1" 2>/dev/null | awk 'NR > 1 && $3 == "active" { print $1 }'; }
+in_list() { case " $2 " in *" $1 "*) return 0 ;; esac; return 1; }
+
+rootdir_storages="$(storages_for rootdir | xargs)"
+template_storages="$(storages_for vztmpl | xargs)"
+if [ -z "$STORAGE" ]; then
+    if in_list local-lvm "$rootdir_storages"; then
+        STORAGE=local-lvm
+    else
+        STORAGE="${rootdir_storages%% *}"
+    fi
+    [ -n "$STORAGE" ] || die "Kein aktiver Speicher für Container gefunden (pvesm status --content rootdir)."
+    say "Speicher für die Disk: $STORAGE (anderen wählen mit STORAGE=…)"
+fi
+in_list "$STORAGE" "$rootdir_storages" \
+    || die "Speicher '$STORAGE' gibt es nicht oder er nimmt keine Container auf. Möglich: $rootdir_storages"
+in_list "$TEMPLATE_STORAGE" "$template_storages" \
+    || die "Speicher '$TEMPLATE_STORAGE' nimmt keine Templates auf. Möglich: $template_storages (wählen mit TEMPLATE_STORAGE=…)"
 
 CTID="${CTID:-$(pvesh get /cluster/nextid)}"
 pct status "$CTID" >/dev/null 2>&1 && die "Container $CTID existiert bereits."
