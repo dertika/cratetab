@@ -390,10 +390,27 @@ pub struct SkippedBarcode {
     pub owner: Option<String>,
 }
 
+/// Was mit vorhandenen Daten passiert.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ImportMode {
+    /// Nur in eine leere Datenbank importieren (Standard)
+    #[default]
+    EmptyOnly,
+    /// Vorhandene Benutzer, Artikel und Buchungen löschen und durch den
+    /// Import ersetzen. Admin-Zugänge bleiben erhalten.
+    Replace,
+}
+
 /// Ergebnis des Imports (bzw. Probelaufs).
 #[derive(Debug, Default)]
 pub struct ImportReport {
     pub dry_run: bool,
+    /// Beim Ersetzen gelöschte Datensätze
+    pub replaced_users: i64,
+    pub replaced_articles: i64,
+    pub replaced_transactions: i64,
+    /// Sicherung, die vor dem Ersetzen angelegt wurde
+    pub backup: Option<String>,
     pub users: usize,
     pub users_created_for_orphans: Vec<String>,
     pub users_renamed: Vec<(String, String)>,
@@ -483,6 +500,19 @@ impl fmt::Display for ImportReport {
             writeln!(f, "PROBELAUF – es wurde nichts gespeichert.\n")?;
         } else {
             writeln!(f, "Import abgeschlossen.\n")?;
+        }
+        if self.replaced_users + self.replaced_articles + self.replaced_transactions > 0 {
+            writeln!(
+                f,
+                "ERSETZT: {} Benutzer, {} Artikel und {} Buchungen {} gelöscht.",
+                self.replaced_users,
+                self.replaced_articles,
+                self.replaced_transactions,
+                if self.dry_run { "würden" } else { "wurden" }
+            )?;
+        }
+        if let Some(backup) = &self.backup {
+            writeln!(f, "Sicherung vorher: {backup}")?;
         }
         let date = |t: Option<DateTime<Utc>>| {
             t.map(|t| t.format("%d.%m.%Y").to_string())
@@ -680,7 +710,12 @@ async fn insert_user(
 }
 
 /// Führt den Import aus. Mit `dry_run` wird am Ende alles zurückgerollt.
-pub async fn import(pool: &SqlitePool, export: &Export, dry_run: bool) -> Result<ImportReport> {
+pub async fn import(
+    pool: &SqlitePool,
+    export: &Export,
+    dry_run: bool,
+    mode: ImportMode,
+) -> Result<ImportReport> {
     let mut report = ImportReport {
         dry_run,
         unreadable: export.unreadable.clone(),
@@ -689,7 +724,8 @@ pub async fn import(pool: &SqlitePool, export: &Export, dry_run: bool) -> Result
     let now = db::now();
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
-    // Nur in eine leere Datenbank importieren
+    // Vorhandene Daten: abbrechen oder (beim Ersetzen) löschen. Das Löschen
+    // gehört zur selben Transaktion – schlägt der Import fehl, bleibt alles erhalten.
     let (users_n, articles_n, tx_n): (i64, i64, i64) = sqlx::query_as(
         "SELECT (SELECT COUNT(*) FROM users), (SELECT COUNT(*) FROM articles),
                 (SELECT COUNT(*) FROM transactions)",
@@ -697,10 +733,29 @@ pub async fn import(pool: &SqlitePool, export: &Export, dry_run: bool) -> Result
     .fetch_one(&mut *tx)
     .await?;
     if users_n + articles_n + tx_n > 0 {
-        bail!(
-            "Die Datenbank ist nicht leer ({users_n} Benutzer, {articles_n} Artikel, {tx_n} Buchungen). \
-             Der Import läuft nur in eine neue Datenbank (ohne Demo-Daten)."
-        );
+        if mode == ImportMode::EmptyOnly {
+            bail!(
+                "Die Datenbank ist nicht leer ({users_n} Benutzer, {articles_n} Artikel, {tx_n} Buchungen). \
+                 Der Import läuft nur in eine neue Datenbank (ohne Demo-Daten) – oder mit „Ersetzen“."
+            );
+        }
+        for table in [
+            "transactions",
+            "barcodes",
+            "article_translations",
+            "article_images",
+            "articles",
+            "sessions WHERE user_id IS NOT NULL",
+            "users",
+        ] {
+            // Feste Tabellennamen, keine Benutzereingaben
+            sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM {table}")))
+                .execute(&mut *tx)
+                .await?;
+        }
+        report.replaced_users = users_n;
+        report.replaced_articles = articles_n;
+        report.replaced_transactions = tx_n;
     }
 
     // --- Artikel -----------------------------------------------------------
@@ -969,6 +1024,23 @@ pub async fn import(pool: &SqlitePool, export: &Export, dry_run: bool) -> Result
         tx.commit().await?;
     }
     Ok(report)
+}
+
+/// Sichert die Datenbank vor dem Ersetzen nach `<db-verzeichnis>/backups/`.
+/// Gibt den Pfad der Sicherung zurück.
+pub async fn backup_before_replace(pool: &SqlitePool, database_path: &Path) -> Result<PathBuf> {
+    let dir = database_path
+        .parent()
+        .filter(|d| !d.as_os_str().is_empty())
+        .unwrap_or(Path::new("."))
+        .join("backups");
+    std::fs::create_dir_all(&dir).with_context(|| format!("{} anlegen", dir.display()))?;
+    let target = dir.join(format!(
+        "vor-import-{}.db",
+        Utc::now().format("%Y%m%d-%H%M%S")
+    ));
+    db::backup(pool, &target).await?;
+    Ok(target)
 }
 
 /// Aktueller Name eines importierten Benutzers (für den Bericht).

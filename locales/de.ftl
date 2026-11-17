@@ -277,7 +277,7 @@ admin-nav-import = Import
 import-title = Import aus fnordcredit
 import-intro = Übernimmt Benutzer, Guthaben, PINs, Produkte und die komplette Buchungshistorie aus dem alten fnordcredit. Nach dem Hochladen läuft zuerst ein Probelauf. Gespeichert wird erst, wenn du bestätigst.
 import-howto = Wie man den Export erstellt, steht in der Anleitung:
-import-not-empty = Der Import ist nur in eine leere Datenbank möglich (ohne Demo-Daten). Vorhanden sind:
+import-not-empty = Die Datenbank ist nicht leer. Der Import ist nur möglich, wenn die vorhandenen Daten ersetzt werden. Vorhanden sind:
 import-file = Export-Datei
 import-file-hint = fnordcredit-export.tar.gz – oder users.json, transactions.json und products.json zusammen auswählen.
 import-upload = Hochladen und prüfen
@@ -345,6 +345,18 @@ import-hint-chain =
         [one] 1 Buchung passte in fnordcredit nicht zum vorherigen Kontostand (Hinweis auf frühere Änderungen direkt in der Datenbank).
        *[other] { $count } Buchungen passten in fnordcredit nicht zum vorherigen Kontostand (Hinweis auf frühere Änderungen direkt in der Datenbank).
     }
+import-replace = Vorhandene Daten ersetzen
+import-replace-hint = Benutzer, Artikel und Buchungen werden gelöscht und durch den Import ersetzt. Admin-Zugänge bleiben erhalten. Vorher wird automatisch eine Sicherung angelegt. Im Probelauf wird noch nichts gelöscht.
+import-replace-will-delete = Beim Import werden gelöscht:
+import-replace-deleted = Gelöscht und ersetzt:
+import-replace-admins-kept = Admin-Zugänge bleiben erhalten.
+import-replace-ack = Ich habe verstanden, dass die vorhandenen Benutzer, Artikel und Buchungen gelöscht werden.
+import-replace-backup-hint = Vor dem Ersetzen wird die bisherige Datenbank im Ordner „backups“ neben der Datenbankdatei gesichert.
+import-replace-confirm = Daten ersetzen und importieren
+import-replace-confirm-question = Vorhandene Daten jetzt wirklich löschen und durch den Import ersetzen?
+import-replace-ack-missing = Bitte bestätigen, dass die vorhandenen Daten gelöscht werden.
+import-backup-created = Sicherung der bisherigen Datenbank:
+import-backup-failed = Die Sicherung vor dem Ersetzen ist fehlgeschlagen, es wurde nichts geändert: { $error }
 import-confirm = Jetzt importieren
 import-confirm-question = Die Daten jetzt übernehmen?
 import-confirm-hint = Der Upload bleibt 30 Minuten gültig. Danach bitte erneut hochladen.
