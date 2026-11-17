@@ -46,6 +46,7 @@ register-submit = Create
 pin-prompt = Please enter your PIN.
 pin-label = PIN
 pin-submit = Continue
+pin-digits-only = The PIN consists of digits only.
 pin-wrong = Wrong PIN.
 pin-locked = Too many failed attempts. Please try again in { $minutes } minutes.
 pin-new = New PIN

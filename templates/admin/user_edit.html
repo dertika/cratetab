@@ -48,7 +48,7 @@
     <p>{% if user.has_pin() %}{{ ctx.t.t("user-has-pin") }}{% else %}{{ ctx.t.t("user-no-pin") }}{% endif %}</p>
     <form method="post" action="/admin/users/{{ user.id }}/pin" class="form" data-confirm="{{ ctx.t.t("pin-reset-confirm") }}">
       <label for="pin">{{ ctx.t.t("pin-reset-label") }}</label>
-      <input type="text" id="pin" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off">
+      <input type="text" id="pin" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off" data-digits-only>
       <div class="form-actions"><button type="submit" class="btn btn-secondary">{{ ctx.t.t("pin-reset") }}</button></div>
     </form>
   </section>

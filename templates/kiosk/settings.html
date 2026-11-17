@@ -16,9 +16,12 @@
     <p class="hint">{{ ctx.t.t("pin-rules") }}</p>
     <form method="post" action="/u/{{ user.id }}/settings/pin" class="form">
       <label for="pin">{{ ctx.t.t("pin-new") }}</label>
-      <input type="password" id="pin" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off" required>
+      <input type="password" id="pin" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8"
+             autocomplete="off" required class="pin-input" data-digits-only data-keypad-field>
       <label for="pin_repeat">{{ ctx.t.t("pin-repeat") }}</label>
-      <input type="password" id="pin_repeat" name="pin_repeat" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off" required>
+      <input type="password" id="pin_repeat" name="pin_repeat" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8"
+             autocomplete="off" required class="pin-input" data-digits-only data-keypad-field>
+      {% call m::keypad("pin", false) %}{% endcall %}
       <button type="submit" class="btn btn-primary">{{ ctx.t.t("save") }}</button>
     </form>
     {% if user.has_pin() %}

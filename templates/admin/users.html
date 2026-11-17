@@ -11,7 +11,7 @@
     <label for="name">{{ ctx.t.t("register-name") }}</label>
     <input type="text" id="name" name="name" value="{{ name }}" required maxlength="40">
     <label for="pin">{{ ctx.t.t("pin-optional") }}</label>
-    <input type="text" id="pin" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off">
+    <input type="text" id="pin" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off" data-digits-only>
     <div class="form-actions"><button type="submit" class="btn btn-primary">{{ ctx.t.t("save") }}</button></div>
   </form>
 </details>

@@ -304,7 +304,14 @@ async fn pin_submit(
     let ctx = ctx
         .for_user(&user, &state.locales)
         .with_idle(state.config.idle_timeout_secs);
-    let error = match users::check_pin(&state.pool, id, form.pin.trim()).await? {
+    // PINs bestehen nur aus Ziffern. Alles andere gar nicht erst prüfen (zählt
+    // auch nicht als Fehlversuch).
+    let pin = form.pin.trim();
+    if pin.is_empty() || !pin.chars().all(|c| c.is_ascii_digit()) {
+        let error = Some(ctx.t.t("pin-digits-only"));
+        return Ok(render(&PinTemplate { ctx, user, error })?.into_response());
+    }
+    let error = match users::check_pin(&state.pool, id, pin).await? {
         PinCheck::Ok => {
             // Eine evtl. vorhandene Sitzung eines anderen Benutzers beenden
             if let Some(old) = jar.get(KIOSK_COOKIE) {

@@ -101,7 +101,7 @@ und den Export wieder löschen (er enthält PIN-Hashes): `rm -rf /tmp/fnordcredi
 |---|---|
 | `users.name` | Benutzername, alter Name als `legacy_id` |
 | `users.credit` | Guthaben (über Buchungen + ggf. Ausgleichsbuchung) |
-| `users.pincode` | PIN bleibt gültig. Beim ersten Login wird sie auf argon2 umgestellt. Alte PINs dürfen länger als 8 Zeichen sein. |
+| `users.pincode` | PIN bleibt gültig. Beim ersten Login wird sie auf argon2 umgestellt. Alte PINs dürfen länger als 8 Ziffern sein. Crate Tab akzeptiert nur Ziffern: Wer in fnordcredit eine PIN mit Buchstaben hatte, bekommt im Admin-Bereich eine neue (*Benutzer → PIN zurücksetzen*). |
 | `transactions` mit `delta > 0` | Aufladung |
 | `transactions` mit `delta < 0` | Kauf, mit Artikel, wenn `product` zu einem Produkt passt (Groß-/Kleinschreibung egal) |
 | `transactions.description` | Notiz der Buchung |

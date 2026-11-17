@@ -379,7 +379,11 @@ main {
   background: var(--surface);
   color: var(--text);
 }
-.amount-input:focus, .pin-input:focus { outline: none; border-color: var(--primary); }
+.amount-input:focus, .pin-input:focus, .pin-input.keypad-target { outline: none; border-color: var(--primary); }
+/* In Formularen (Registrierung, Einstellungen) etwas kompakter */
+.form input.pin-input { min-height: 52px; font-size: 1.4rem; text-align: center; letter-spacing: .15em; }
+.form input.pin-input.keypad-target { border-color: var(--primary); }
+.form .keypad { margin-top: 8px; }
 
 /* Ziffernblock */
 .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }

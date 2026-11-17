@@ -399,3 +399,30 @@ async fn foreign_origin_is_rejected() {
         500
     );
 }
+
+#[tokio::test]
+async fn pin_must_be_digits() {
+    let (app, state) = app().await;
+    let user = users::create(&state.pool, "Zahlen", Some("1234"))
+        .await
+        .unwrap();
+    // Buchstaben werden abgelehnt, ohne als Fehlversuch zu zählen
+    for _ in 0..10 {
+        let r = send(&app, post(&format!("/u/{}/pin", user.id), "pin=abcd", None)).await;
+        assert!(r.body.contains("nur aus Ziffern"), "{}", r.body);
+    }
+    let r = send(&app, post(&format!("/u/{}/pin", user.id), "pin=1234", None)).await;
+    assert_eq!(
+        r.location,
+        Some(format!("/u/{}", user.id)),
+        "keine Sperre durch Buchstaben-Eingaben"
+    );
+
+    // Registrierung: PIN mit Buchstaben wird abgelehnt
+    let r = send(
+        &app,
+        post("/register", "name=Neu&pin=12ab&pin_repeat=12ab", None),
+    )
+    .await;
+    assert!(r.body.contains("4 bis 8 Ziffern"), "{}", r.body);
+}

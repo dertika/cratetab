@@ -316,6 +316,33 @@
     else if (e.key === "Enter" && input.form) { input.form.requestSubmit(); e.preventDefault(); }
   });
 
+  // Mehrere Felder an einem Ziffernblock (z. B. „PIN“ und „PIN wiederholen“):
+  // Das zuletzt angetippte Feld ist das Ziel und wird hervorgehoben.
+  function selectKeypadField(input) {
+    var form = input.form;
+    var pad = form && form.querySelector(".keypad");
+    if (!pad) return;
+    pad.dataset.keypadFor = input.id;
+    form.querySelectorAll("[data-keypad-field]").forEach(function (f) {
+      f.classList.toggle("keypad-target", f === input);
+    });
+  }
+  document.querySelectorAll("[data-keypad-field]").forEach(function (input) {
+    input.addEventListener("focus", function () { selectKeypadField(input); });
+    input.addEventListener("click", function () { selectKeypadField(input); });
+    var pad = input.form && input.form.querySelector(".keypad");
+    if (pad && pad.dataset.keypadFor === input.id) input.classList.add("keypad-target");
+  });
+
+  // PIN-Felder nehmen nur Ziffern an (auch bei Eingabe über die Tastatur)
+  document.addEventListener("input", function (e) {
+    var input = e.target;
+    if (input.matches && input.matches("[data-digits-only]")) {
+      var digits = input.value.replace(/\D+/g, "");
+      if (digits !== input.value) input.value = digits;
+    }
+  });
+
   // -------------------------------------------------------------------------
   // 6. Kleinkram
   // -------------------------------------------------------------------------

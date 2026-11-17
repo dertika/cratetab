@@ -55,6 +55,7 @@ register-submit = Anlegen
 pin-prompt = Bitte PIN eingeben.
 pin-label = PIN
 pin-submit = Weiter
+pin-digits-only = Die PIN besteht nur aus Ziffern.
 pin-wrong = PIN ist falsch.
 pin-locked = Zu viele Fehlversuche. Bitte in { $minutes } Minuten erneut versuchen.
 pin-new = Neue PIN
