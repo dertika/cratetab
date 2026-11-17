@@ -23,7 +23,7 @@
   {%- for u in users %}
   <a class="tile user-tile" href="{% if u.has_pin() %}/u/{{ u.id }}/pin{% else %}/u/{{ u.id }}{% endif %}"
      data-name="{{ u.name|lower }}" data-letter="{{ u.initial() }}">
-    <span class="avatar c{{ u.id % 8 }}" aria-hidden="true">{{ u.initial() }}</span>
+    <span class="avatar" aria-hidden="true">{{ u.initial() }}</span>
     <span class="tile-name">{{ u.name }}</span>
     {%- if u.has_pin() %}<span class="pin-badge" title="{{ ctx.t.t("pin-protected") }}">🔒</span>{% endif %}
   </a>

@@ -4,7 +4,7 @@
 {% block body_class %}kiosk kiosk-pin{% endblock %}
 {% block content %}
 <section class="narrow center">
-  <span class="avatar avatar-big c{{ user.id % 8 }}" aria-hidden="true">{{ user.initial() }}</span>
+  <span class="avatar avatar-big" aria-hidden="true">{{ user.initial() }}</span>
   <h1>{{ user.name }}</h1>
   <p>{{ ctx.t.t("pin-prompt") }}</p>
   {% if let Some(e) = error %}<div class="flash flash-error" role="alert">{{ e }}</div>{% endif %}
