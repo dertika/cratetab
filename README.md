@@ -403,8 +403,9 @@ cratetab import-fnordcredit fnordcredit-export                          # Import
 Statt auf der Kommandozeile geht der Import auch im Browser: Admin-Bereich → **Import**,
 `fnordcredit-export.tar.gz` hochladen, Bericht des Probelaufs prüfen, **Jetzt importieren**.
 
-Der Import läuft nur in eine leere Datenbank (ohne Demo-Daten) und vollständig in einer
-Datenbank-Transaktion. Passt die Summe der Buchungen eines Benutzers nicht zu seinem alten
+Der Import läuft in eine leere Datenbank (ohne Demo-Daten) oder ersetzt mit `--replace` bzw.
+„Vorhandene Daten ersetzen“ die vorhandenen Benutzer, Artikel und Buchungen, nach einer
+automatischen Sicherung. Alles läuft in einer Datenbank-Transaktion. Passt die Summe der Buchungen eines Benutzers nicht zu seinem alten
 Kontostand, gleicht eine Korrekturbuchung die Differenz aus. Alte PINs bleiben gültig und werden
 beim ersten Login auf argon2 umgestellt. Die Schritt-für-Schritt-Anleitung für LXC und Docker
 und die Bedeutung aller Hinweise im Bericht stehen in
@@ -439,7 +440,7 @@ cratetab backup <ziel.db>                   # konsistente Sicherung
 cratetab seed-demo                          # Demo-Daten in leere Datenbank
 cratetab check-balances [--repair]          # Guthaben aus Buchungen nachrechnen
 cratetab set-admin-password <name> <pw>     # Admin-Passwort vergessen? Hiermit neu setzen
-cratetab import-fnordcredit <ordner> [--dry-run]   # Daten aus fnordcredit übernehmen
+cratetab import-fnordcredit <ordner> [--dry-run] [--replace]   # Daten aus fnordcredit übernehmen
 cratetab --version                          # Version anzeigen
 ```
 

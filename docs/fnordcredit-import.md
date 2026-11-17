@@ -37,11 +37,21 @@ und (falls vorhanden) `products.json`. Danach einpacken:
 cd /root && tar czf fnordcredit-export.tar.gz fnordcredit-export
 ```
 
-## 2. Crate Tab frisch aufsetzen
+## 2. Leere Datenbank oder „Ersetzen“
 
-Der Import läuft nur in eine **leere** Datenbank, also ohne Benutzer, Artikel
-und Buchungen. Admin-Zugänge dürfen schon existieren. Demo-Daten deshalb
+Am einfachsten importiert man in eine **leere** Datenbank, also ohne Benutzer,
+Artikel und Buchungen. Admin-Zugänge dürfen schon existieren. Demo-Daten deshalb
 ausschalten (`CRATETAB_SEED_DEMO=false`).
+
+Enthält die Datenbank schon Daten, z. B. von Tests, gibt es **Ersetzen**:
+- **Im Browser:** beim Hochladen „Vorhandene Daten ersetzen“ ankreuzen.
+- **Auf der Kommandozeile:** `--replace` anhängen.
+
+Was dabei passiert:
+- Benutzer, Artikel (mit Bildern und Barcodes) und Buchungen werden gelöscht und durch den Import ersetzt. Admin-Zugänge bleiben.
+- Der Probelauf zeigt, wie viel gelöscht würde, löscht aber noch nichts.
+- Vor dem echten Import sichert Crate Tab die bisherige Datenbank nach `backups/vor-import-<Datum>.db` neben der Datenbankdatei (Docker: `/data/backups`, LXC: `/var/lib/cratetab/backups`).
+- Löschen und Import laufen in einer Datenbank-Transaktion: Schlägt der Import fehl, bleibt alles, wie es war.
 
 ## 3. Probelauf und Import im Browser (empfohlen)
 

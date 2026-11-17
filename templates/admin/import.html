@@ -13,6 +13,19 @@
   <div class="flash flash-ok" role="status">{{ ctx.t.t("import-done-title") }}</div>
   {% endif %}
 
+  {%- if replace %}
+  {#- Ersetzen: deutlich zeigen, was gelöscht wird bzw. wurde -#}
+  <div class="flash flash-error" role="alert">
+    <strong>{% if r.dry_run %}{{ ctx.t.t("import-replace-will-delete") }}{% else %}{{ ctx.t.t("import-replace-deleted") }}{% endif %}</strong>
+    {{ ctx.t.t("import-users") }}: {{ r.replaced_users }}, {{ ctx.t.t("import-articles") }}: {{ r.replaced_articles }},
+    {{ ctx.t.t("import-transactions") }}: {{ r.replaced_transactions }}.
+    {{ ctx.t.t("import-replace-admins-kept") }}
+  </div>
+  {%- endif %}
+  {%- if let Some(backup) = r.backup %}
+  <p class="flash flash-ok">{{ ctx.t.t("import-backup-created") }} <code>{{ backup }}</code></p>
+  {%- endif %}
+
   {% if !files.is_empty() %}
   <p class="hint">{{ ctx.t.t("import-files") }}: {% for f in files %}<code>{{ f }}</code>{% if !loop.last %}, {% endif %}{% endfor %}</p>
   {% endif %}
@@ -165,9 +178,19 @@
 
   {% if r.dry_run %}
     {% if let Some(tk) = token %}
-    <form method="post" action="/admin/import/confirm" class="form" data-confirm="{{ ctx.t.t("import-confirm-question") }}">
+    <form method="post" action="/admin/import/confirm" class="form"
+          data-confirm="{% if replace %}{{ ctx.t.t("import-replace-confirm-question") }}{% else %}{{ ctx.t.t("import-confirm-question") }}{% endif %}">
       <input type="hidden" name="token" value="{{ tk }}">
+      {%- if replace %}
+      <label class="choice">
+        <input type="checkbox" name="confirm_replace" value="1" required>
+        <span>{{ ctx.t.t("import-replace-ack") }}</span>
+      </label>
+      <p class="hint">{{ ctx.t.t("import-replace-backup-hint") }}</p>
+      <button type="submit" class="btn btn-danger btn-big">{{ ctx.t.t("import-replace-confirm") }}</button>
+      {%- else %}
       <button type="submit" class="btn btn-primary btn-big">{{ ctx.t.t("import-confirm") }}</button>
+      {%- endif %}
       <p class="hint">{{ ctx.t.t("import-confirm-hint") }}</p>
     </form>
     {% endif %}
@@ -179,23 +202,29 @@
 {% else %}
   {#- Upload-Formular -#}
   <p>{{ ctx.t.t("import-intro") }}</p>
-  {% if counts.is_empty() %}
-  <form method="post" action="/admin/import" enctype="multipart/form-data" class="form card">
-    <label for="files">{{ ctx.t.t("import-file") }}</label>
-    <input type="file" id="files" name="files" multiple required
-           accept=".gz,.tgz,.tar,.json,application/gzip,application/x-tar,application/json">
-    <p class="hint">{{ ctx.t.t("import-file-hint") }}</p>
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">{{ ctx.t.t("import-upload") }}</button>
-    </div>
-  </form>
-  {% else %}
+  {% if !counts.is_empty() %}
   <div class="flash flash-error" role="alert">
     {{ ctx.t.t("import-not-empty") }}
     ({{ ctx.t.t("import-users") }}: {{ counts.users }}, {{ ctx.t.t("import-articles") }}: {{ counts.articles }},
     {{ ctx.t.t("import-transactions") }}: {{ counts.transactions }})
   </div>
   {% endif %}
+  <form method="post" action="/admin/import" enctype="multipart/form-data" class="form card">
+    <label for="files">{{ ctx.t.t("import-file") }}</label>
+    <input type="file" id="files" name="files" multiple required
+           accept=".gz,.tgz,.tar,.json,application/gzip,application/x-tar,application/json">
+    <p class="hint">{{ ctx.t.t("import-file-hint") }}</p>
+    {%- if !counts.is_empty() %}
+    <label class="choice">
+      <input type="checkbox" name="replace" value="1" required>
+      <span>{{ ctx.t.t("import-replace") }}</span>
+    </label>
+    <p class="hint">{{ ctx.t.t("import-replace-hint") }}</p>
+    {%- endif %}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">{{ ctx.t.t("import-upload") }}</button>
+    </div>
+  </form>
   <p class="hint">{{ ctx.t.t("import-howto") }}
     <a href="https://github.com/dertika/cratetab/blob/main/docs/fnordcredit-import.md" rel="noopener">docs/fnordcredit-import.md</a></p>
 {% endif %}

@@ -268,7 +268,7 @@ admin-nav-import = Import
 import-title = Import from fnordcredit
 import-intro = Takes over users, balances, PINs, products and the complete booking history from the old fnordcredit. After uploading, a dry run is done first. Nothing is saved until you confirm.
 import-howto = How to create the export is described in the guide:
-import-not-empty = Importing is only possible into an empty database (without demo data). Currently present:
+import-not-empty = The database is not empty. Importing is only possible if the existing data is replaced. Currently present:
 import-file = Export file
 import-file-hint = fnordcredit-export.tar.gz – or select users.json, transactions.json and products.json together.
 import-upload = Upload and check
@@ -336,6 +336,18 @@ import-hint-chain =
         [one] 1 booking in fnordcredit did not match the previous balance (sign of earlier changes made directly in the database).
        *[other] { $count } bookings in fnordcredit did not match the previous balance (sign of earlier changes made directly in the database).
     }
+import-replace = Replace existing data
+import-replace-hint = Users, articles and bookings are deleted and replaced by the import. Admin accounts are kept. A backup is created automatically beforehand. The dry run does not delete anything yet.
+import-replace-will-delete = The import will delete:
+import-replace-deleted = Deleted and replaced:
+import-replace-admins-kept = Admin accounts are kept.
+import-replace-ack = I understand that the existing users, articles and bookings will be deleted.
+import-replace-backup-hint = Before replacing, the current database is backed up to the “backups” folder next to the database file.
+import-replace-confirm = Replace data and import
+import-replace-confirm-question = Really delete the existing data now and replace it with the import?
+import-replace-ack-missing = Please confirm that the existing data will be deleted.
+import-backup-created = Backup of the previous database:
+import-backup-failed = The backup before replacing failed, nothing was changed: { $error }
 import-confirm = Import now
 import-confirm-question = Take over the data now?
 import-confirm-hint = The upload stays valid for 30 minutes. After that, please upload it again.

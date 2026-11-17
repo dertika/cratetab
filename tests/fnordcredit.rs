@@ -99,7 +99,9 @@ async fn full_import() {
     let pool = db::connect_memory().await.unwrap();
 
     // Probelauf ändert nichts
-    let dry = fnordcredit::import(&pool, &export, true).await.unwrap();
+    let dry = fnordcredit::import(&pool, &export, true, fnordcredit::ImportMode::EmptyOnly)
+        .await
+        .unwrap();
     assert!(dry.dry_run);
     assert_eq!(dry.transactions, 6);
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
@@ -109,7 +111,9 @@ async fn full_import() {
     assert_eq!(count, 0, "Probelauf darf nichts speichern");
 
     // Echter Import
-    let report = fnordcredit::import(&pool, &export, false).await.unwrap();
+    let report = fnordcredit::import(&pool, &export, false, fnordcredit::ImportMode::EmptyOnly)
+        .await
+        .unwrap();
     println!("{report}");
     assert_eq!(report.users, 5, "4 Benutzer + 1 deaktiviert angelegter");
     assert_eq!(report.articles, 3);
@@ -206,7 +210,7 @@ async fn full_import() {
     );
 
     // Zweiter Import wird abgelehnt
-    let err = fnordcredit::import(&pool, &export, false)
+    let err = fnordcredit::import(&pool, &export, false, fnordcredit::ImportMode::EmptyOnly)
         .await
         .unwrap_err();
     assert!(err.to_string().contains("nicht leer"), "{err}");
@@ -260,4 +264,90 @@ fn upload_variants() {
     let err =
         fnordcredit::load_upload(vec![("x.tar.gz".into(), vec![0x1f, 0x8b, 0, 1, 2])]).unwrap_err();
     assert!(!err.to_string().is_empty());
+}
+
+#[tokio::test]
+async fn replace_existing_data() {
+    use fnordcredit::ImportMode;
+
+    let dir = temp_dir("replace");
+    write_export(&dir);
+    let export = fnordcredit::load_export(&dir).unwrap();
+
+    // Datenbank mit Demo-Daten und einem Admin
+    let db_path = dir.join("db").join("cratetab.db");
+    let pool = db::connect(&db_path).await.unwrap();
+    cratetab::seed::seed(&pool).await.unwrap();
+    let admin = cratetab::admins::create(&pool, "kassenwart", "geheim123")
+        .await
+        .unwrap();
+    let demo_users: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let demo_tx: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM transactions")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(demo_users > 0 && demo_tx > 0);
+
+    // Ohne „Ersetzen“ wird abgelehnt
+    let err = fnordcredit::import(&pool, &export, true, ImportMode::EmptyOnly)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("nicht leer"), "{err}");
+
+    // Probelauf mit Ersetzen: zeigt, was gelöscht würde, löscht aber nichts
+    let dry = fnordcredit::import(&pool, &export, true, ImportMode::Replace)
+        .await
+        .unwrap();
+    assert_eq!(dry.replaced_users, demo_users);
+    assert_eq!(dry.replaced_transactions, demo_tx);
+    let still: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(still, demo_users);
+
+    // Sicherung und echter Import mit Ersetzen
+    let backup = fnordcredit::backup_before_replace(&pool, &db_path)
+        .await
+        .unwrap();
+    assert!(backup.starts_with(dir.join("db").join("backups")));
+    assert!(backup.exists());
+
+    let report = fnordcredit::import(&pool, &export, false, ImportMode::Replace)
+        .await
+        .unwrap();
+    assert_eq!(report.replaced_users, demo_users);
+    assert_eq!(report.users, 5);
+    let names: Vec<String> = sqlx::query_scalar("SELECT name FROM users ORDER BY name")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+    assert!(names.contains(&"Max".to_string()));
+    assert!(
+        !names.contains(&"Ferris".to_string()),
+        "Demo-Benutzer sind weg"
+    );
+    let articles: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM articles")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(articles, 3, "nur die importierten Artikel");
+    assert!(ledger::verify_balances(&pool).await.unwrap().is_empty());
+    // Admin-Zugänge bleiben
+    assert!(cratetab::admins::get(&pool, admin).await.unwrap().is_some());
+
+    // Die Sicherung enthält noch die alten Daten
+    let old = db::connect(&backup).await.unwrap();
+    let old_users: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(&old)
+        .await
+        .unwrap();
+    assert_eq!(old_users, demo_users);
+
+    old.close().await;
+    pool.close().await;
+    let _ = std::fs::remove_dir_all(&dir);
 }

@@ -20,8 +20,9 @@ Aufruf:
   cratetab seed-demo                       Demo-Daten anlegen (nur in leerer Datenbank)
   cratetab check-balances [--repair]       Guthaben aus den Buchungen nachrechnen
   cratetab set-admin-password <name> <pw>  Admin-Passwort setzen (legt den Admin bei Bedarf an)
-  cratetab import-fnordcredit <ordner> [--dry-run]
-                                           Daten aus fnordcredit übernehmen (RethinkDB-Export)
+  cratetab import-fnordcredit <ordner> [--dry-run] [--replace]
+                                           Daten aus fnordcredit übernehmen (RethinkDB-Export);
+                                           --replace ersetzt vorhandene Daten (mit Sicherung)
   cratetab --version                       Version anzeigen
   cratetab help                            Diese Hilfe
 
@@ -118,17 +119,30 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Some("import-fnordcredit") => {
-            let dir = args
-                .get(1)
-                .filter(|a| !a.starts_with("--"))
-                .context("Aufruf: cratetab import-fnordcredit <export-ordner> [--dry-run]")?;
+            let dir = args.get(1).filter(|a| !a.starts_with("--")).context(
+                "Aufruf: cratetab import-fnordcredit <export-ordner> [--dry-run] [--replace]",
+            )?;
             let dry_run = args.iter().any(|a| a == "--dry-run");
+            let mode = if args.iter().any(|a| a == "--replace") {
+                fnordcredit::ImportMode::Replace
+            } else {
+                fnordcredit::ImportMode::EmptyOnly
+            };
             let export = fnordcredit::load_export(&PathBuf::from(dir))?;
             for f in &export.files {
                 println!("Gelesen: {f}");
             }
             let pool = db::connect(&config.database_path).await?;
-            let report = fnordcredit::import(&pool, &export, dry_run).await?;
+            // Vor dem Ersetzen die bisherige Datenbank sichern
+            let backup = if mode == fnordcredit::ImportMode::Replace && !dry_run {
+                let path = fnordcredit::backup_before_replace(&pool, &config.database_path).await?;
+                println!("Sicherung angelegt: {}", path.display());
+                Some(path.display().to_string())
+            } else {
+                None
+            };
+            let mut report = fnordcredit::import(&pool, &export, dry_run, mode).await?;
+            report.backup = backup;
             println!("\n{report}");
             if dry_run {
                 println!("Zum Übernehmen denselben Befehl ohne --dry-run ausführen.");

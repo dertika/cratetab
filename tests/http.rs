@@ -16,8 +16,13 @@ use tower::ServiceExt;
 
 async fn app() -> (Router, AppState) {
     let pool = db::connect_memory().await.unwrap();
+    // Eigenes Verzeichnis je Test, damit Sicherungen nicht im Projekt landen
+    static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = N.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let dir = std::env::temp_dir().join(format!("cratetab-http-{}-{n}", std::process::id()));
     let config = Config {
         club_name: "Testverein".into(),
+        database_path: dir.join("cratetab.db"),
         admin_initial_password: Some("admin-passwort".into()),
         ..Config::default()
     };
@@ -467,9 +472,23 @@ fn export_archive() -> Vec<u8> {
     builder.into_inner().unwrap().finish().unwrap()
 }
 
-fn multipart_upload(uri: &str, file_name: &str, data: &[u8], cookie: &str) -> Request<Body> {
+fn multipart_upload(
+    uri: &str,
+    file_name: &str,
+    data: &[u8],
+    cookie: &str,
+    replace: bool,
+) -> Request<Body> {
     let boundary = "----cratetab-test";
     let mut body = Vec::new();
+    if replace {
+        body.extend_from_slice(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"replace\"\r\n\r\n1\r\n"
+            )
+            .as_bytes(),
+        );
+    }
     body.extend_from_slice(
         format!(
             "--{boundary}\r\nContent-Disposition: form-data; name=\"files\"; filename=\"{file_name}\"\r\n\
@@ -520,6 +539,7 @@ async fn admin_upload_import() {
             "fnordcredit-export.tar.gz",
             &export_archive(),
             &cookie,
+            false,
         ),
     )
     .await;
@@ -573,10 +593,74 @@ async fn admin_upload_import() {
     )
     .await;
     assert!(r.body.contains("abgelaufen"));
-    // Datenbank ist jetzt nicht mehr leer -> kein Upload-Formular mehr
+    // Datenbank ist jetzt nicht mehr leer -> Upload nur noch mit „Ersetzen“
     let r = send(&app, get("/admin/import", Some(&cookie))).await;
-    assert!(r.body.contains("nur in eine leere Datenbank"));
-    assert!(!r.body.contains("type=\"file\""));
+    assert!(r.body.contains("Die Datenbank ist nicht leer"));
+    assert!(r.body.contains("name=\"replace\""));
+    let upload = |replace| {
+        multipart_upload(
+            "/admin/import",
+            "fnordcredit-export.tar.gz",
+            &export_archive(),
+            &cookie,
+            replace,
+        )
+    };
+    let r = send(&app, upload(false)).await;
+    assert!(r.body.contains("nicht leer"), "ohne Ersetzen abgelehnt");
+
+    // Ein Benutzer kommt dazu, dann wird ersetzt
+    users::create(&state.pool, "Wird gelöscht", None)
+        .await
+        .unwrap();
+    let r = send(&app, upload(true)).await;
+    assert!(r.body.contains("Beim Import werden gelöscht"), "{}", r.body);
+    assert_eq!(
+        users::list_all(&state.pool).await.unwrap().len(),
+        3,
+        "Probelauf löscht nichts"
+    );
+    let token = r
+        .body
+        .split("name=\"token\" value=\"")
+        .nth(1)
+        .and_then(|s| s.split('"').next())
+        .unwrap()
+        .to_string();
+    // Ohne Häkchen: abgelehnt, der Upload bleibt gültig
+    let r = send(
+        &app,
+        post(
+            "/admin/import/confirm",
+            &format!("token={token}"),
+            Some(&cookie),
+        ),
+    )
+    .await;
+    assert!(r.body.contains("Bitte bestätigen"), "{}", r.body);
+    let r = send(
+        &app,
+        post(
+            "/admin/import/confirm",
+            &format!("token={token}&confirm_replace=1"),
+            Some(&cookie),
+        ),
+    )
+    .await;
+    assert!(r.body.contains("Import abgeschlossen"), "{}", r.body);
+    assert!(
+        r.body.contains("Sicherung der bisherigen Datenbank"),
+        "{}",
+        r.body
+    );
+    let names: Vec<String> = users::list_all(&state.pool)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|u| u.name)
+        .collect();
+    assert_eq!(names.len(), 2);
+    assert!(!names.contains(&"Wird gelöscht".to_string()));
 
     // Ohne Anmeldung kein Zugriff
     let r = send(&app, get("/admin/import", None)).await;

@@ -269,7 +269,7 @@ admin-nav-import = Import
 import-title = Import depuis fnordcredit
 import-intro = Reprend les utilisateurs, soldes, codes PIN, produits et tout l’historique des opérations de l’ancien fnordcredit. Après l’envoi, un essai à blanc est d’abord effectué. Rien n’est enregistré avant ta confirmation.
 import-howto = La création de l’export est décrite dans le guide :
-import-not-empty = L’import n’est possible que dans une base de données vide (sans données de démonstration). Actuellement présents :
+import-not-empty = La base de données n’est pas vide. L’import n’est possible qu’en remplaçant les données existantes. Actuellement présents :
 import-file = Fichier d’export
 import-file-hint = fnordcredit-export.tar.gz – ou sélectionner ensemble users.json, transactions.json et products.json.
 import-upload = Envoyer et vérifier
@@ -337,6 +337,18 @@ import-hint-chain =
         [one] 1 opération dans fnordcredit ne correspondait pas au solde précédent (signe de modifications faites directement dans la base de données).
        *[other] { $count } opérations dans fnordcredit ne correspondaient pas au solde précédent (signe de modifications faites directement dans la base de données).
     }
+import-replace = Remplacer les données existantes
+import-replace-hint = Les utilisateurs, articles et opérations sont supprimés et remplacés par l’import. Les comptes admin sont conservés. Une sauvegarde est créée automatiquement avant. L’essai à blanc ne supprime encore rien.
+import-replace-will-delete = L’import supprimera :
+import-replace-deleted = Supprimés et remplacés :
+import-replace-admins-kept = Les comptes admin sont conservés.
+import-replace-ack = J’ai compris que les utilisateurs, articles et opérations existants seront supprimés.
+import-replace-backup-hint = Avant le remplacement, la base de données actuelle est sauvegardée dans le dossier « backups » à côté du fichier de base de données.
+import-replace-confirm = Remplacer les données et importer
+import-replace-confirm-question = Vraiment supprimer maintenant les données existantes et les remplacer par l’import ?
+import-replace-ack-missing = Confirme que les données existantes seront supprimées, s’il te plaît.
+import-backup-created = Sauvegarde de l’ancienne base de données :
+import-backup-failed = La sauvegarde avant le remplacement a échoué, rien n’a été modifié : { $error }
 import-confirm = Importer maintenant
 import-confirm-question = Reprendre les données maintenant ?
 import-confirm-hint = L’envoi reste valable 30 minutes. Ensuite, envoie-le à nouveau.
