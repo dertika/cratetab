@@ -66,5 +66,6 @@ pub async fn state_with_pool(
         pool,
         config: Arc::new(config),
         locales: Arc::new(locales),
+        pending_import: Default::default(),
     })
 }

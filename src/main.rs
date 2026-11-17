@@ -125,7 +125,7 @@ async fn main() -> Result<()> {
             let dry_run = args.iter().any(|a| a == "--dry-run");
             let export = fnordcredit::load_export(&PathBuf::from(dir))?;
             for f in &export.files {
-                println!("Gelesen: {}", f.display());
+                println!("Gelesen: {f}");
             }
             let pool = db::connect(&config.database_path).await?;
             let report = fnordcredit::import(&pool, &export, dry_run).await?;

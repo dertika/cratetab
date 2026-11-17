@@ -261,3 +261,82 @@ admin-change-password = Change your password
 admin-password-current = Current password
 admin-password-new = New password
 admin-password-repeat = Repeat new password
+
+## Admin – import from fnordcredit
+
+admin-nav-import = Import
+import-title = Import from fnordcredit
+import-intro = Takes over users, balances, PINs, products and the complete booking history from the old fnordcredit. After uploading, a dry run is done first. Nothing is saved until you confirm.
+import-howto = How to create the export is described in the guide:
+import-not-empty = Importing is only possible into an empty database (without demo data). Currently present:
+import-file = Export file
+import-file-hint = fnordcredit-export.tar.gz – or select users.json, transactions.json and products.json together.
+import-upload = Upload and check
+import-no-file = Please select a file.
+import-error = Import not possible: { $error }
+import-expired = The upload has expired or was already used. Please upload the file again.
+import-dry-run-title = Dry run – nothing has been saved yet. Please check the report and then confirm.
+import-done-title = Import completed.
+import-files = Read
+import-users = Users
+import-articles = Articles
+import-transactions = Bookings
+import-barcodes =
+    { $count ->
+        [one] 1 barcode
+       *[other] { $count } barcodes
+    }
+import-purchases =
+    { $count ->
+        [one] 1 purchase
+       *[other] { $count } purchases
+    }
+import-deposits =
+    { $count ->
+        [one] 1 top-up
+       *[other] { $count } top-ups
+    }
+import-pins = PINs taken over
+import-pins-hint = converted to argon2 on first login
+import-total-old = Sum of all balances in fnordcredit
+import-total-new = Sum of all balances in Crate Tab
+import-total-orphans = of which { $amount } for users without an old balance
+import-total-ok = The sums of all balances match.
+import-total-mismatch = The sums of all balances differ – please check!
+import-hints = Notes
+import-hint-reconcile = Balancing bookings
+import-hint-reconcile-text = For these users the sum of bookings does not match the balance in fnordcredit (e.g. users from before the booking history). A correction booking balances the difference.
+import-col-balance = Balance in fnordcredit
+import-col-sum = Sum of bookings
+import-col-difference = Balancing
+import-hint-renamed = Renamed (duplicate or too long name)
+import-hint-orphans = Bookings without a user – created as deactivated users
+import-hint-pins-dropped = PIN in unknown format, not taken over
+import-hint-tokens = Had a token (dropped)
+import-hint-debt = Had individual debt limits (dropped, the global minimum balance applies)
+import-debt-none = no debt allowed
+import-debt-limit = limit { $amount }
+import-hint-unknown-products = Products from bookings that no longer exist (kept as name only)
+import-hint-barcodes = Barcodes skipped
+import-barcode-invalid = invalid
+import-barcode-taken = already belongs to { $article }
+import-hint-unreadable = Unreadable records
+import-hint-zero =
+    { $count ->
+        [one] 1 booking without amount skipped.
+       *[other] { $count } bookings without amount skipped.
+    }
+import-hint-no-time =
+    { $count ->
+        [one] 1 booking without timestamp skipped.
+       *[other] { $count } bookings without timestamp skipped.
+    }
+import-hint-chain =
+    { $count ->
+        [one] 1 booking in fnordcredit did not match the previous balance (sign of earlier changes made directly in the database).
+       *[other] { $count } bookings in fnordcredit did not match the previous balance (sign of earlier changes made directly in the database).
+    }
+import-confirm = Import now
+import-confirm-question = Take over the data now?
+import-confirm-hint = The upload stays valid for 30 minutes. After that, please upload it again.
+import-to-users = To the users

@@ -3,6 +3,7 @@
 //! Aufbau:
 //! * [`kiosk`] – Oberfläche für Mitglieder (Startseite, Buchen, Aufladen …)
 //! * [`admin`] – Admin-Bereich unter `/admin`
+//! * [`import`] – Admin-Seite für den Import aus fnordcredit
 //! * [`lang`]  – Sprachumschaltung per Flagge
 //!
 //! Seiten werden serverseitig mit Askama-Templates (`templates/`) gerendert.
@@ -10,6 +11,7 @@
 //! POST und ersetzen nur einen Teil der Seite durch die Antwort.
 
 pub mod admin;
+pub mod import;
 pub mod kiosk;
 pub mod lang;
 
@@ -44,6 +46,8 @@ pub struct AppState {
     pub pool: SqlitePool,
     pub config: Arc<Config>,
     pub locales: Arc<Locales>,
+    /// Hochgeladener fnordcredit-Export, der auf die Bestätigung wartet
+    pub pending_import: Arc<std::sync::Mutex<Option<import::PendingImport>>>,
 }
 
 /// Baut den kompletten Router der Anwendung.

@@ -259,7 +259,7 @@ server {
     server_name getraenke.example.org;
     ssl_certificate     /etc/letsencrypt/live/getraenke.example.org/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/getraenke.example.org/privkey.pem;
-    client_max_body_size 4m;   # für Artikelbilder
+    client_max_body_size 64m;  # für Artikelbilder und den fnordcredit-Import
 
     location / {
         proxy_pass http://127.0.0.1:8080;
@@ -399,6 +399,9 @@ node fnordcredit-export.js fnordcredit-export                           # auf de
 cratetab import-fnordcredit fnordcredit-export --dry-run                # Probelauf mit Bericht
 cratetab import-fnordcredit fnordcredit-export                          # Import
 ```
+
+Statt auf der Kommandozeile geht der Import auch im Browser: Admin-Bereich → **Import**,
+`fnordcredit-export.tar.gz` hochladen, Bericht des Probelaufs prüfen, **Jetzt importieren**.
 
 Der Import läuft nur in eine leere Datenbank (ohne Demo-Daten) und vollständig in einer
 Datenbank-Transaktion. Passt die Summe der Buchungen eines Benutzers nicht zu seinem alten
