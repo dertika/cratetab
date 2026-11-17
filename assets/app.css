@@ -181,6 +181,7 @@ main {
 }
 .flash-ok { background: var(--ok-bg); color: var(--ok-text); }
 .flash-error { background: var(--error-bg); color: var(--error-text); }
+.flash-info { background: var(--surface-2); color: var(--text); border: 2px solid var(--primary); }
 .flash ul { margin: 8px 0 0; font-weight: 400; }
 
 .toast {

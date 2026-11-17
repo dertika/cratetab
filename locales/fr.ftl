@@ -262,3 +262,82 @@ admin-change-password = Changer ton mot de passe
 admin-password-current = Mot de passe actuel
 admin-password-new = Nouveau mot de passe
 admin-password-repeat = Répéter le nouveau mot de passe
+
+## Admin – import depuis fnordcredit
+
+admin-nav-import = Import
+import-title = Import depuis fnordcredit
+import-intro = Reprend les utilisateurs, soldes, codes PIN, produits et tout l’historique des opérations de l’ancien fnordcredit. Après l’envoi, un essai à blanc est d’abord effectué. Rien n’est enregistré avant ta confirmation.
+import-howto = La création de l’export est décrite dans le guide :
+import-not-empty = L’import n’est possible que dans une base de données vide (sans données de démonstration). Actuellement présents :
+import-file = Fichier d’export
+import-file-hint = fnordcredit-export.tar.gz – ou sélectionner ensemble users.json, transactions.json et products.json.
+import-upload = Envoyer et vérifier
+import-no-file = Choisis un fichier, s’il te plaît.
+import-error = Import impossible : { $error }
+import-expired = L’envoi a expiré ou a déjà été utilisé. Envoie à nouveau le fichier, s’il te plaît.
+import-dry-run-title = Essai à blanc – rien n’a encore été enregistré. Vérifie le rapport puis confirme.
+import-done-title = Import terminé.
+import-files = Lu
+import-users = Utilisateurs
+import-articles = Articles
+import-transactions = Opérations
+import-barcodes =
+    { $count ->
+        [one] 1 code-barres
+       *[other] { $count } codes-barres
+    }
+import-purchases =
+    { $count ->
+        [one] 1 achat
+       *[other] { $count } achats
+    }
+import-deposits =
+    { $count ->
+        [one] 1 recharge
+       *[other] { $count } recharges
+    }
+import-pins = Codes PIN repris
+import-pins-hint = convertis en argon2 lors de la première connexion
+import-total-old = Somme de tous les soldes dans fnordcredit
+import-total-new = Somme de tous les soldes dans Crate Tab
+import-total-orphans = dont { $amount } pour des utilisateurs sans ancien solde
+import-total-ok = Les sommes de tous les soldes concordent.
+import-total-mismatch = Les sommes de tous les soldes diffèrent – vérifie, s’il te plaît !
+import-hints = Remarques
+import-hint-reconcile = Opérations d’ajustement
+import-hint-reconcile-text = Pour ces utilisateurs, la somme des opérations ne correspond pas au solde dans fnordcredit (p. ex. utilisateurs antérieurs à l’historique). Une correction compense la différence.
+import-col-balance = Solde dans fnordcredit
+import-col-sum = Somme des opérations
+import-col-difference = Ajustement
+import-hint-renamed = Renommés (nom en double ou trop long)
+import-hint-orphans = Opérations sans utilisateur – créés comme utilisateurs désactivés
+import-hint-pins-dropped = Code PIN dans un format inconnu, non repris
+import-hint-tokens = Avaient un jeton (supprimé)
+import-hint-debt = Avaient des limites de dette individuelles (supprimées, le solde minimum global s’applique)
+import-debt-none = aucune dette autorisée
+import-debt-limit = limite { $amount }
+import-hint-unknown-products = Produits d’opérations qui n’existent plus (repris uniquement par leur nom)
+import-hint-barcodes = Codes-barres ignorés
+import-barcode-invalid = invalide
+import-barcode-taken = appartient déjà à { $article }
+import-hint-unreadable = Enregistrements illisibles
+import-hint-zero =
+    { $count ->
+        [one] 1 opération sans montant ignorée.
+       *[other] { $count } opérations sans montant ignorées.
+    }
+import-hint-no-time =
+    { $count ->
+        [one] 1 opération sans horodatage ignorée.
+       *[other] { $count } opérations sans horodatage ignorées.
+    }
+import-hint-chain =
+    { $count ->
+        [one] 1 opération dans fnordcredit ne correspondait pas au solde précédent (signe de modifications faites directement dans la base de données).
+       *[other] { $count } opérations dans fnordcredit ne correspondaient pas au solde précédent (signe de modifications faites directement dans la base de données).
+    }
+import-confirm = Importer maintenant
+import-confirm-question = Reprendre les données maintenant ?
+import-confirm-hint = L’envoi reste valable 30 minutes. Ensuite, envoie-le à nouveau.
+import-to-users = Vers les utilisateurs

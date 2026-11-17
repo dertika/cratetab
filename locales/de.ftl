@@ -270,3 +270,82 @@ admin-change-password = Eigenes Passwort ändern
 admin-password-current = Aktuelles Passwort
 admin-password-new = Neues Passwort
 admin-password-repeat = Neues Passwort wiederholen
+
+## Admin – Import aus fnordcredit
+
+admin-nav-import = Import
+import-title = Import aus fnordcredit
+import-intro = Übernimmt Benutzer, Guthaben, PINs, Produkte und die komplette Buchungshistorie aus dem alten fnordcredit. Nach dem Hochladen läuft zuerst ein Probelauf. Gespeichert wird erst, wenn du bestätigst.
+import-howto = Wie man den Export erstellt, steht in der Anleitung:
+import-not-empty = Der Import ist nur in eine leere Datenbank möglich (ohne Demo-Daten). Vorhanden sind:
+import-file = Export-Datei
+import-file-hint = fnordcredit-export.tar.gz – oder users.json, transactions.json und products.json zusammen auswählen.
+import-upload = Hochladen und prüfen
+import-no-file = Bitte eine Datei auswählen.
+import-error = Import nicht möglich: { $error }
+import-expired = Der Upload ist abgelaufen oder wurde schon verwendet. Bitte die Datei erneut hochladen.
+import-dry-run-title = Probelauf – es wurde noch nichts gespeichert. Bitte den Bericht prüfen und dann bestätigen.
+import-done-title = Import abgeschlossen.
+import-files = Gelesen
+import-users = Benutzer
+import-articles = Artikel
+import-transactions = Buchungen
+import-barcodes =
+    { $count ->
+        [one] 1 Barcode
+       *[other] { $count } Barcodes
+    }
+import-purchases =
+    { $count ->
+        [one] 1 Kauf
+       *[other] { $count } Käufe
+    }
+import-deposits =
+    { $count ->
+        [one] 1 Aufladung
+       *[other] { $count } Aufladungen
+    }
+import-pins = PINs übernommen
+import-pins-hint = werden beim ersten Login auf argon2 umgestellt
+import-total-old = Summe aller Guthaben in fnordcredit
+import-total-new = Summe aller Guthaben in Crate Tab
+import-total-orphans = davon { $amount } bei Benutzern ohne alten Kontostand
+import-total-ok = Die Summen aller Guthaben stimmen überein.
+import-total-mismatch = Die Summen aller Guthaben weichen ab – bitte prüfen!
+import-hints = Hinweise
+import-hint-reconcile = Ausgleichsbuchungen
+import-hint-reconcile-text = Bei diesen Benutzern passt die Summe der Buchungen nicht zum Kontostand in fnordcredit (z. B. Benutzer aus der Zeit vor der Buchungshistorie). Eine Korrekturbuchung gleicht die Differenz aus.
+import-col-balance = Kontostand fnordcredit
+import-col-sum = Summe der Buchungen
+import-col-difference = Ausgleich
+import-hint-renamed = Umbenannt (Name doppelt oder zu lang)
+import-hint-orphans = Buchungen ohne Benutzer – als deaktivierte Benutzer angelegt
+import-hint-pins-dropped = PIN in unbekanntem Format, nicht übernommen
+import-hint-tokens = Hatten einen Token (entfällt)
+import-hint-debt = Hatten eigene Schuldengrenzen (entfallen, es gilt das globale Minimalguthaben)
+import-debt-none = keine Schulden erlaubt
+import-debt-limit = Grenze { $amount }
+import-hint-unknown-products = Produkte aus Buchungen, die es nicht mehr gibt (nur als Name übernommen)
+import-hint-barcodes = Barcodes übersprungen
+import-barcode-invalid = ungültig
+import-barcode-taken = gehört schon zu { $article }
+import-hint-unreadable = Nicht lesbare Datensätze
+import-hint-zero =
+    { $count ->
+        [one] 1 Buchung ohne Betrag übersprungen.
+       *[other] { $count } Buchungen ohne Betrag übersprungen.
+    }
+import-hint-no-time =
+    { $count ->
+        [one] 1 Buchung ohne Zeitstempel übersprungen.
+       *[other] { $count } Buchungen ohne Zeitstempel übersprungen.
+    }
+import-hint-chain =
+    { $count ->
+        [one] 1 Buchung passte in fnordcredit nicht zum vorherigen Kontostand (Hinweis auf frühere Änderungen direkt in der Datenbank).
+       *[other] { $count } Buchungen passten in fnordcredit nicht zum vorherigen Kontostand (Hinweis auf frühere Änderungen direkt in der Datenbank).
+    }
+import-confirm = Jetzt importieren
+import-confirm-question = Die Daten jetzt übernehmen?
+import-confirm-hint = Der Upload bleibt 30 Minuten gültig. Danach bitte erneut hochladen.
+import-to-users = Zu den Benutzern

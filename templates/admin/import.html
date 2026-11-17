@@ -1,0 +1,202 @@
+{% extends "admin/layout.html" %}
+{% block title %}{{ ctx.t.t("import-title") }} · {% endblock %}
+{% block nav_import %}active{% endblock %}
+{% block content %}
+<h1>{{ ctx.t.t("import-title") }}</h1>
+{% if let Some(e) = error %}<div class="flash flash-error" role="alert">{{ e }}</div>{% endif %}
+
+{% if let Some(r) = report %}
+  {#- Bericht nach Probelauf oder Import -#}
+  {% if r.dry_run %}
+  <div class="flash flash-info" role="status">{{ ctx.t.t("import-dry-run-title") }}</div>
+  {% else %}
+  <div class="flash flash-ok" role="status">{{ ctx.t.t("import-done-title") }}</div>
+  {% endif %}
+
+  {% if !files.is_empty() %}
+  <p class="hint">{{ ctx.t.t("import-files") }}: {% for f in files %}<code>{{ f }}</code>{% if !loop.last %}, {% endif %}{% endfor %}</p>
+  {% endif %}
+
+  <div class="stat-cards">
+    <div class="stat-card">
+      <span class="stat-label">{{ ctx.t.t("import-users") }}</span>
+      <span class="stat-value">{{ r.users }}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">{{ ctx.t.t("import-articles") }}</span>
+      <span class="stat-value">{{ r.articles }}</span>
+      <span class="hint">{{ ctx.t.tn("import-barcodes", "count", r.barcodes as i64) }}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">{{ ctx.t.t("import-transactions") }}</span>
+      <span class="stat-value">{{ r.transactions }}</span>
+      <span class="hint">
+        {{ ctx.t.tn("import-purchases", "count", r.purchases as i64) }},
+        {{ ctx.t.tn("import-deposits", "count", r.deposits as i64) }}
+        {%- if let Some(first) = r.first_time_db() %}{% if let Some(last) = r.last_time_db() %}<br>{{ ctx.t.date(first) }} – {{ ctx.t.date(last) }}{% endif %}{% endif %}
+      </span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">{{ ctx.t.t("import-pins") }}</span>
+      <span class="stat-value">{{ r.users_with_pin }}</span>
+      <span class="hint">{{ ctx.t.t("import-pins-hint") }}</span>
+    </div>
+  </div>
+
+  <div class="stat-cards">
+    <div class="stat-card">
+      <span class="stat-label">{{ ctx.t.t("import-total-old") }}</span>
+      <span class="stat-value">{{ ctx.t.money(r.old_total_cents) }}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">{{ ctx.t.t("import-total-new") }}</span>
+      <span class="stat-value">{{ ctx.t.money(r.new_total_cents) }}</span>
+      {%- if r.orphans_total_cents != 0 %}
+      <span class="hint">{{ ctx.t.t1("import-total-orphans", "amount", ctx.t.money(r.orphans_total_cents)) }}</span>
+      {%- endif %}
+    </div>
+  </div>
+  {% if r.totals_match() %}
+  <p class="flash flash-ok">✓ {{ ctx.t.t("import-total-ok") }}</p>
+  {% else %}
+  <p class="flash flash-error">{{ ctx.t.t("import-total-mismatch") }}</p>
+  {% endif %}
+
+  {% if r.has_hints() %}
+  <h2>{{ ctx.t.t("import-hints") }}</h2>
+
+  {% if !r.reconciliations.is_empty() %}
+  <details class="card" open>
+    <summary><strong>{{ ctx.t.t("import-hint-reconcile") }} ({{ r.reconciliations.len() }})</strong></summary>
+    <p class="hint">{{ ctx.t.t("import-hint-reconcile-text") }}</p>
+    <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{{ ctx.t.t("tx-user") }}</th>
+          <th class="num">{{ ctx.t.t("import-col-balance") }}</th>
+          <th class="num">{{ ctx.t.t("import-col-sum") }}</th>
+          <th class="num">{{ ctx.t.t("import-col-difference") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {%- for rec in r.reconciliations %}
+        <tr>
+          <td>{{ rec.name }}</td>
+          <td class="num nowrap">{{ ctx.t.money(rec.expected_cents) }}</td>
+          <td class="num nowrap">{{ ctx.t.money(rec.from_transactions_cents) }}</td>
+          <td class="num nowrap">{{ ctx.t.money(rec.expected_cents - rec.from_transactions_cents) }}</td>
+        </tr>
+        {%- endfor %}
+      </tbody>
+    </table>
+    </div>
+  </details>
+  {% endif %}
+
+  {% if !r.users_renamed.is_empty() %}
+  <details class="card" open>
+    <summary><strong>{{ ctx.t.t("import-hint-renamed") }} ({{ r.users_renamed.len() }})</strong></summary>
+    <ul>{% for (old, new) in r.users_renamed %}<li>„{{ old }}“ → „{{ new }}“</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+
+  {% if !r.users_created_for_orphans.is_empty() %}
+  <details class="card" open>
+    <summary><strong>{{ ctx.t.t("import-hint-orphans") }} ({{ r.users_created_for_orphans.len() }})</strong></summary>
+    <ul>{% for n in r.users_created_for_orphans %}<li>{{ n }}</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+
+  {% if !r.pins_dropped.is_empty() %}
+  <details class="card" open>
+    <summary><strong>{{ ctx.t.t("import-hint-pins-dropped") }} ({{ r.pins_dropped.len() }})</strong></summary>
+    <ul>{% for n in r.pins_dropped %}<li>{{ n }}</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+
+  {% if !r.users_with_token.is_empty() %}
+  <details class="card">
+    <summary><strong>{{ ctx.t.t("import-hint-tokens") }} ({{ r.users_with_token.len() }})</strong></summary>
+    <ul>{% for n in r.users_with_token %}<li>{{ n }}</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+
+  {% if !r.users_with_debt_limits.is_empty() %}
+  <details class="card">
+    <summary><strong>{{ ctx.t.t("import-hint-debt") }} ({{ r.users_with_debt_limits.len() }})</strong></summary>
+    <ul>
+      {%- for d in r.users_with_debt_limits %}
+      <li>{{ d.name }}: {% if let Some(limit) = d.limit_cents %}{{ ctx.t.t1("import-debt-limit", "amount", ctx.t.money(**limit)) }}{% else %}{{ ctx.t.t("import-debt-none") }}{% endif %}</li>
+      {%- endfor %}
+    </ul>
+  </details>
+  {% endif %}
+
+  {% if !r.unknown_products.is_empty() %}
+  <details class="card" open>
+    <summary><strong>{{ ctx.t.t("import-hint-unknown-products") }} ({{ r.unknown_products.len() }})</strong></summary>
+    <ul>{% for (name, count) in r.unknown_products %}<li>{{ name }} ({{ count }}×)</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+
+  {% if !r.barcodes_skipped.is_empty() %}
+  <details class="card">
+    <summary><strong>{{ ctx.t.t("import-hint-barcodes") }} ({{ r.barcodes_skipped.len() }})</strong></summary>
+    <ul>
+      {%- for b in r.barcodes_skipped %}
+      <li>{{ b.code }} ({{ b.article }}): {% if let Some(owner) = b.owner %}{{ ctx.t.t1("import-barcode-taken", "article", owner) }}{% else %}{{ ctx.t.t("import-barcode-invalid") }}{% endif %}</li>
+      {%- endfor %}
+    </ul>
+  </details>
+  {% endif %}
+
+  {% if !r.unreadable.is_empty() %}
+  <details class="card" open>
+    <summary><strong>{{ ctx.t.t("import-hint-unreadable") }} ({{ r.unreadable.len() }})</strong></summary>
+    <ul>{% for (table, reason) in r.unreadable %}<li><code>{{ table }}</code>: {{ reason }}</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+
+  {% if r.skipped_zero > 0 %}<p class="hint">{{ ctx.t.tn("import-hint-zero", "count", r.skipped_zero as i64) }}</p>{% endif %}
+  {% if r.skipped_without_time > 0 %}<p class="hint">{{ ctx.t.tn("import-hint-no-time", "count", r.skipped_without_time as i64) }}</p>{% endif %}
+  {% if r.balance_chain_mismatches > 0 %}<p class="hint">{{ ctx.t.tn("import-hint-chain", "count", r.balance_chain_mismatches as i64) }}</p>{% endif %}
+  {% endif %}
+
+  {% if r.dry_run %}
+    {% if let Some(tk) = token %}
+    <form method="post" action="/admin/import/confirm" class="form" data-confirm="{{ ctx.t.t("import-confirm-question") }}">
+      <input type="hidden" name="token" value="{{ tk }}">
+      <button type="submit" class="btn btn-primary btn-big">{{ ctx.t.t("import-confirm") }}</button>
+      <p class="hint">{{ ctx.t.t("import-confirm-hint") }}</p>
+    </form>
+    {% endif %}
+    <p><a href="/admin/import" class="btn btn-secondary">{{ ctx.t.t("cancel") }}</a></p>
+  {% else %}
+    <p><a href="/admin/users" class="btn btn-primary">{{ ctx.t.t("import-to-users") }}</a></p>
+  {% endif %}
+
+{% else %}
+  {#- Upload-Formular -#}
+  <p>{{ ctx.t.t("import-intro") }}</p>
+  {% if counts.is_empty() %}
+  <form method="post" action="/admin/import" enctype="multipart/form-data" class="form card">
+    <label for="files">{{ ctx.t.t("import-file") }}</label>
+    <input type="file" id="files" name="files" multiple required
+           accept=".gz,.tgz,.tar,.json,application/gzip,application/x-tar,application/json">
+    <p class="hint">{{ ctx.t.t("import-file-hint") }}</p>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">{{ ctx.t.t("import-upload") }}</button>
+    </div>
+  </form>
+  {% else %}
+  <div class="flash flash-error" role="alert">
+    {{ ctx.t.t("import-not-empty") }}
+    ({{ ctx.t.t("import-users") }}: {{ counts.users }}, {{ ctx.t.t("import-articles") }}: {{ counts.articles }},
+    {{ ctx.t.t("import-transactions") }}: {{ counts.transactions }})
+  </div>
+  {% endif %}
+  <p class="hint">{{ ctx.t.t("import-howto") }}
+    <a href="https://github.com/dertika/cratetab/blob/main/docs/fnordcredit-import.md" rel="noopener">docs/fnordcredit-import.md</a></p>
+{% endif %}
+{% endblock %}

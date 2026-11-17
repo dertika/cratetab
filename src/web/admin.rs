@@ -69,6 +69,7 @@ pub fn routes(config: &Config) -> Router<AppState> {
         .route("/admins", get(admin_list).post(admin_create))
         .route("/admins/password", post(admin_password))
         .route("/admins/{id}/toggle", post(admin_toggle))
+        .merge(super::import::routes())
 }
 
 // ---------------------------------------------------------------------------
@@ -110,7 +111,8 @@ impl FromRequestParts<AppState> for AdminSession {
 }
 
 impl PageCtx {
-    fn admin(mut self, session: &AdminSession) -> Self {
+    /// Markiert die Seite als Admin-Seite (Navigation mit Benutzername).
+    pub(super) fn admin(mut self, session: &AdminSession) -> Self {
         self.admin_name = Some(session.admin.username.clone());
         self
     }

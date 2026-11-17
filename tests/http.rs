@@ -426,3 +426,159 @@ async fn pin_must_be_digits() {
     .await;
     assert!(r.body.contains("4 bis 8 Ziffern"), "{}", r.body);
 }
+
+/// Baut ein .tar.gz wie `tar czf fnordcredit-export.tar.gz fnordcredit-export`.
+fn export_archive() -> Vec<u8> {
+    let t =
+        |e: f64| serde_json::json!({"$reql_type$": "TIME", "epoch_time": e, "timezone": "+00:00"});
+    let users = serde_json::json!([
+        {"name": "Ada", "credit": 3.5, "lastchanged": t(1_480_000_000.0),
+         "pincode": "sha1$2b19e86b$1$7fccf43a2e1bd530ca8c1e573cb6b5b5059ba7d7"},
+        {"name": "Bob", "credit": 10, "lastchanged": t(1_420_000_000.0)}
+    ]);
+    let txs = serde_json::json!([
+        {"id": "1", "username": "Ada", "delta": 5, "credit": 5, "time": t(1_479_000_000.0), "product": null},
+        {"id": "2", "username": "Ada", "delta": -1.5, "credit": 3.5, "time": t(1_479_000_100.0), "product": "Mate"}
+    ]);
+    let products = serde_json::json!([{"id": "p", "name": "Mate", "price": 1.5, "ean": "4029764001807", "order": 1}]);
+
+    let mut builder = tar::Builder::new(flate2::write::GzEncoder::new(
+        Vec::new(),
+        flate2::Compression::default(),
+    ));
+    for (name, value) in [
+        ("users", users),
+        ("transactions", txs),
+        ("products", products),
+    ] {
+        let data = serde_json::to_vec(&value).unwrap();
+        let mut header = tar::Header::new_gnu();
+        header.set_size(data.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder
+            .append_data(
+                &mut header,
+                format!("fnordcredit-export/fnordcredit/{name}.json"),
+                data.as_slice(),
+            )
+            .unwrap();
+    }
+    builder.into_inner().unwrap().finish().unwrap()
+}
+
+fn multipart_upload(uri: &str, file_name: &str, data: &[u8], cookie: &str) -> Request<Body> {
+    let boundary = "----cratetab-test";
+    let mut body = Vec::new();
+    body.extend_from_slice(
+        format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"files\"; filename=\"{file_name}\"\r\n\
+             Content-Type: application/gzip\r\n\r\n"
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(data);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+    Request::post(uri)
+        .header(
+            header::CONTENT_TYPE,
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .header(header::COOKIE, cookie)
+        .body(Body::from(body))
+        .unwrap()
+}
+
+#[tokio::test]
+async fn admin_upload_import() {
+    let (app, state) = app().await;
+    let r = send(
+        &app,
+        post(
+            "/admin/login",
+            "username=admin&password=admin-passwort",
+            None,
+        ),
+    )
+    .await;
+    let cookie = r
+        .cookies
+        .iter()
+        .find(|c| c.starts_with("admin_session="))
+        .unwrap()
+        .clone();
+
+    let r = send(&app, get("/admin/import", Some(&cookie))).await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert!(r.body.contains("Hochladen und prüfen"));
+
+    // Upload -> Probelauf, noch nichts gespeichert
+    let r = send(
+        &app,
+        multipart_upload(
+            "/admin/import",
+            "fnordcredit-export.tar.gz",
+            &export_archive(),
+            &cookie,
+        ),
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.body);
+    assert!(r.body.contains("Probelauf"), "{}", r.body);
+    assert!(
+        r.body.contains("Ausgleichsbuchungen"),
+        "Bob braucht einen Ausgleich"
+    );
+    assert!(r.body.contains("Die Summen aller Guthaben stimmen überein"));
+    assert!(users::list_all(&state.pool).await.unwrap().is_empty());
+    let token = r
+        .body
+        .split("name=\"token\" value=\"")
+        .nth(1)
+        .and_then(|s| s.split('"').next())
+        .expect("Token für die Bestätigung")
+        .to_string();
+
+    // Falsches Token
+    let r = send(
+        &app,
+        post("/admin/import/confirm", "token=falsch", Some(&cookie)),
+    )
+    .await;
+    assert!(r.body.contains("abgelaufen"));
+
+    // Bestätigen -> Import
+    let r = send(
+        &app,
+        post(
+            "/admin/import/confirm",
+            &format!("token={token}"),
+            Some(&cookie),
+        ),
+    )
+    .await;
+    assert!(r.body.contains("Import abgeschlossen"), "{}", r.body);
+    let users = users::list_all(&state.pool).await.unwrap();
+    assert_eq!(users.len(), 2);
+    assert_eq!(users.iter().map(|u| u.balance_cents).sum::<i64>(), 1350);
+
+    // Derselbe Upload kann nicht noch einmal importiert werden
+    let r = send(
+        &app,
+        post(
+            "/admin/import/confirm",
+            &format!("token={token}"),
+            Some(&cookie),
+        ),
+    )
+    .await;
+    assert!(r.body.contains("abgelaufen"));
+    // Datenbank ist jetzt nicht mehr leer -> kein Upload-Formular mehr
+    let r = send(&app, get("/admin/import", Some(&cookie))).await;
+    assert!(r.body.contains("nur in eine leere Datenbank"));
+    assert!(!r.body.contains("type=\"file\""));
+
+    // Ohne Anmeldung kein Zugriff
+    let r = send(&app, get("/admin/import", None)).await;
+    assert_eq!(r.status, StatusCode::SEE_OTHER);
+}

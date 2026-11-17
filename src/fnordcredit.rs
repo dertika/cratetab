@@ -87,8 +87,8 @@ pub struct Export {
     pub products: Vec<LegacyProduct>,
     /// Dokumente, die nicht gelesen werden konnten: (Tabelle, Grund)
     pub unreadable: Vec<(String, String)>,
-    /// Gefundene Dateien
-    pub files: Vec<PathBuf>,
+    /// Gelesene Dateien (für die Anzeige)
+    pub files: Vec<String>,
 }
 
 /// Sucht eine Tabellendatei (z. B. `users.json`) im Exportverzeichnis.
@@ -120,14 +120,13 @@ fn find_table(dir: &Path, table: &str) -> Result<Option<PathBuf>> {
     }
 }
 
-/// Liest eine Tabellendatei: ein JSON-Array oder ein Dokument pro Zeile.
-fn read_documents(path: &Path) -> Result<Vec<Value>> {
-    let text =
-        std::fs::read_to_string(path).with_context(|| format!("{} lesen", path.display()))?;
+/// Liest den Inhalt einer Tabellendatei: ein JSON-Array oder ein Dokument pro Zeile.
+fn parse_documents(name: &str, data: &[u8]) -> Result<Vec<Value>> {
+    let text = std::str::from_utf8(data).with_context(|| format!("{name} ist kein UTF-8-Text"))?;
     let trimmed = text.trim_start_matches('\u{feff}').trim();
     if trimmed.starts_with('[') {
         return serde_json::from_str(trimmed)
-            .with_context(|| format!("{} ist kein gültiges JSON", path.display()));
+            .with_context(|| format!("{name} ist kein gültiges JSON"));
     }
     trimmed
         .lines()
@@ -135,7 +134,7 @@ fn read_documents(path: &Path) -> Result<Vec<Value>> {
         .enumerate()
         .map(|(i, line)| {
             serde_json::from_str(line.trim().trim_end_matches(','))
-                .with_context(|| format!("{} Zeile {}: kein gültiges JSON", path.display(), i + 1))
+                .with_context(|| format!("{name} Zeile {}: kein gültiges JSON", i + 1))
         })
         .collect()
 }
@@ -248,45 +247,117 @@ fn parse_product(doc: &Value) -> Result<LegacyProduct, String> {
     })
 }
 
-/// Liest ein Exportverzeichnis von `rethinkdb export`.
+/// Liest ein Exportverzeichnis von `rethinkdb export` (bzw. scripts/fnordcredit-export.js).
 pub fn load_export(dir: &Path) -> Result<Export> {
+    let mut files = Vec::new();
+    for table in TABLES {
+        if let Some(path) = find_table(dir, table)? {
+            let data = std::fs::read(&path).with_context(|| format!("{} lesen", path.display()))?;
+            files.push((path.display().to_string(), data));
+        }
+    }
+    load_from_files(files)
+}
+
+/// Die Tabellen, die der Import liest.
+const TABLES: [&str; 3] = ["users", "transactions", "products"];
+
+/// Höchstgröße des entpackten Inhalts eines hochgeladenen Archivs.
+pub const MAX_UNPACKED_BYTES: u64 = 256 * 1024 * 1024;
+
+/// Liest hochgeladene Dateien: ein Archiv (`.tar.gz`/`.tgz`/`.tar`) mit dem
+/// Export oder die JSON-Dateien einzeln. Das Archiv wird nur im Speicher
+/// gelesen, nicht entpackt; andere Dateien darin werden ignoriert.
+pub fn load_upload(uploads: Vec<(String, Vec<u8>)>) -> Result<Export> {
+    let mut files = Vec::new();
+    for (name, data) in uploads {
+        if data.starts_with(&[0x1f, 0x8b]) {
+            let gz = flate2::read::GzDecoder::new(data.as_slice());
+            read_tar(&name, gz, &mut files)?;
+        } else if data.len() > 262 && &data[257..262] == b"ustar" {
+            read_tar(&name, data.as_slice(), &mut files)?;
+        } else {
+            files.push((name, data));
+        }
+    }
+    load_from_files(files)
+}
+
+/// Sammelt die Tabellendateien aus einem tar-Archiv.
+fn read_tar(
+    archive_name: &str,
+    reader: impl std::io::Read,
+    files: &mut Vec<(String, Vec<u8>)>,
+) -> Result<()> {
+    use std::io::Read;
+    let mut archive = tar::Archive::new(reader.take(MAX_UNPACKED_BYTES));
+    let mut total: u64 = 0;
+    for entry in archive
+        .entries()
+        .with_context(|| format!("{archive_name} ist kein gültiges Archiv"))?
+    {
+        let mut entry = entry.with_context(|| format!("{archive_name} ist beschädigt"))?;
+        let path = entry.path()?.to_string_lossy().into_owned();
+        let file_name = path.rsplit('/').next().unwrap_or_default();
+        if !TABLES.iter().any(|t| file_name == format!("{t}.json")) {
+            continue;
+        }
+        total += entry.size();
+        if total > MAX_UNPACKED_BYTES {
+            bail!("{archive_name} ist zu groß");
+        }
+        let mut data = Vec::new();
+        entry.read_to_end(&mut data)?;
+        files.push((format!("{archive_name}: {path}"), data));
+    }
+    Ok(())
+}
+
+/// Ordnet Dateien den Tabellen zu (am Dateinamen) und liest sie ein.
+fn load_from_files(files: Vec<(String, Vec<u8>)>) -> Result<Export> {
     let mut export = Export::default();
-
-    let users = find_table(dir, "users")?.context("users.json nicht gefunden")?;
-    let transactions =
-        find_table(dir, "transactions")?.context("transactions.json nicht gefunden")?;
-    let products = find_table(dir, "products")?;
-
-    for doc in read_documents(&users)? {
-        match parse_user(&doc) {
-            Ok(u) => export.users.push(u),
-            Err(e) => export
-                .unreadable
-                .push(("users".into(), format!("{e}: {doc}"))),
+    let mut by_table: HashMap<&str, (String, Vec<u8>)> = HashMap::new();
+    for (name, data) in files {
+        let file_name = name
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or_default()
+            .to_string();
+        let Some(table) = TABLES.iter().find(|t| file_name == format!("{t}.json")) else {
+            continue;
+        };
+        if let Some((other, _)) = by_table.get(table) {
+            bail!(
+                "{table}.json kommt mehrfach vor ({other}, {name}). Bitte nur den Export einer Datenbank angeben."
+            );
         }
+        by_table.insert(table, (name, data));
     }
-    for doc in read_documents(&transactions)? {
-        match parse_transaction(&doc) {
-            Ok(t) => export.transactions.push(t),
-            Err(e) => export
-                .unreadable
-                .push(("transactions".into(), format!("{e}: {doc}"))),
-        }
+    if !by_table.contains_key("users") {
+        bail!("users.json nicht gefunden");
     }
-    if let Some(path) = &products {
-        for doc in read_documents(path)? {
-            match parse_product(&doc) {
-                Ok(p) => export.products.push(p),
-                Err(e) => export
+    if !by_table.contains_key("transactions") {
+        bail!("transactions.json nicht gefunden");
+    }
+
+    for table in TABLES {
+        let Some((name, data)) = by_table.remove(table) else {
+            continue;
+        };
+        for doc in parse_documents(&name, &data)? {
+            let result = match table {
+                "users" => parse_user(&doc).map(|u| export.users.push(u)),
+                "transactions" => parse_transaction(&doc).map(|t| export.transactions.push(t)),
+                _ => parse_product(&doc).map(|p| export.products.push(p)),
+            };
+            if let Err(e) = result {
+                export
                     .unreadable
-                    .push(("products".into(), format!("{e}: {doc}"))),
+                    .push((table.to_string(), format!("{e}: {doc}")));
             }
         }
+        export.files.push(name);
     }
-    export.files = [Some(users), Some(transactions), products]
-        .into_iter()
-        .flatten()
-        .collect();
     Ok(export)
 }
 
@@ -302,6 +373,23 @@ pub struct Reconciliation {
     pub from_transactions_cents: i64,
 }
 
+/// Eigene Schuldengrenze eines Benutzers in fnordcredit (entfällt beim Import).
+#[derive(Debug, Clone)]
+pub struct DebtLimit {
+    pub name: String,
+    /// `None` = keine Schulden erlaubt, sonst die Grenze in Cent
+    pub limit_cents: Option<i64>,
+}
+
+/// Ein Barcode, der nicht übernommen wurde.
+#[derive(Debug, Clone)]
+pub struct SkippedBarcode {
+    pub code: String,
+    pub article: String,
+    /// Artikel, dem der Barcode schon gehört; `None` = ungültiger Barcode
+    pub owner: Option<String>,
+}
+
 /// Ergebnis des Imports (bzw. Probelaufs).
 #[derive(Debug, Default)]
 pub struct ImportReport {
@@ -312,10 +400,10 @@ pub struct ImportReport {
     pub users_with_pin: usize,
     pub pins_dropped: Vec<String>,
     pub users_with_token: Vec<String>,
-    pub users_with_debt_limits: Vec<String>,
+    pub users_with_debt_limits: Vec<DebtLimit>,
     pub articles: usize,
     pub barcodes: usize,
-    pub barcodes_skipped: Vec<String>,
+    pub barcodes_skipped: Vec<SkippedBarcode>,
     pub transactions: usize,
     pub purchases: usize,
     pub deposits: usize,
@@ -356,6 +444,39 @@ fn list(f: &mut fmt::Formatter<'_>, title: &str, items: &[String]) -> fmt::Resul
     Ok(())
 }
 
+impl ImportReport {
+    /// Erster Buchungszeitpunkt im Datenbankformat (für die Anzeige)
+    pub fn first_time_db(&self) -> Option<String> {
+        self.first_time.map(db::to_db_time)
+    }
+
+    /// Letzter Buchungszeitpunkt im Datenbankformat (für die Anzeige)
+    pub fn last_time_db(&self) -> Option<String> {
+        self.last_time.map(db::to_db_time)
+    }
+
+    /// Stimmt die neue Summe aller Guthaben mit der alten überein?
+    pub fn totals_match(&self) -> bool {
+        self.old_total_cents == self.new_total_cents - self.orphans_total_cents
+    }
+
+    /// Gibt es Hinweise, die man sich ansehen sollte?
+    pub fn has_hints(&self) -> bool {
+        !(self.reconciliations.is_empty()
+            && self.users_renamed.is_empty()
+            && self.users_created_for_orphans.is_empty()
+            && self.pins_dropped.is_empty()
+            && self.users_with_token.is_empty()
+            && self.users_with_debt_limits.is_empty()
+            && self.unknown_products.is_empty()
+            && self.barcodes_skipped.is_empty()
+            && self.unreadable.is_empty())
+            || self.skipped_zero > 0
+            || self.skipped_without_time > 0
+            || self.balance_chain_mismatches > 0
+    }
+}
+
 impl fmt::Display for ImportReport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.dry_run {
@@ -383,7 +504,7 @@ impl fmt::Display for ImportReport {
             date(self.last_time)
         )?;
         writeln!(f, "Ausgleichsbuchungen: {}", self.reconciliations.len())?;
-        let matches = self.old_total_cents == self.new_total_cents - self.orphans_total_cents;
+        let matches = self.totals_match();
         write!(
             f,
             "Summe aller Guthaben: alt {}, neu {}",
@@ -436,10 +557,18 @@ impl fmt::Display for ImportReport {
             &self.pins_dropped,
         )?;
         list(f, "Hatten einen Token (entfällt)", &self.users_with_token)?;
+        let limits: Vec<String> = self
+            .users_with_debt_limits
+            .iter()
+            .map(|d| match d.limit_cents {
+                None => format!("{}: keine Schulden erlaubt", d.name),
+                Some(l) => format!("{}: Grenze {}", d.name, euro(l)),
+            })
+            .collect();
         list(
             f,
             "Hatten eigene Schuldengrenzen (entfallen, es gilt CRATETAB_MIN_BALANCE)",
-            &self.users_with_debt_limits,
+            &limits,
         )?;
         let unknown: Vec<String> = self
             .unknown_products
@@ -451,7 +580,15 @@ impl fmt::Display for ImportReport {
             "Produkte aus Buchungen, die es nicht mehr gibt (nur als Name übernommen)",
             &unknown,
         )?;
-        list(f, "Barcodes übersprungen", &self.barcodes_skipped)?;
+        let barcodes: Vec<String> = self
+            .barcodes_skipped
+            .iter()
+            .map(|b| match &b.owner {
+                None => format!("„{}“ bei {}: ungültig", b.code, b.article),
+                Some(o) => format!("{} bei {}: gehört schon zu {o}", b.code, b.article),
+            })
+            .collect();
+        list(f, "Barcodes übersprungen", &barcodes)?;
         let unreadable: Vec<String> = self
             .unreadable
             .iter()
@@ -592,13 +729,17 @@ pub async fn import(pool: &SqlitePool, export: &Export, dry_run: bool) -> Result
         for raw in &p.eans {
             let code = articles::normalize_barcode(raw);
             if !articles::validate_barcode(&code) {
-                report
-                    .barcodes_skipped
-                    .push(format!("„{raw}“ bei {name}: ungültig"));
+                report.barcodes_skipped.push(SkippedBarcode {
+                    code: raw.clone(),
+                    article: name.clone(),
+                    owner: None,
+                });
             } else if let Some(owner) = barcode_owner.get(&code) {
-                report
-                    .barcodes_skipped
-                    .push(format!("{code} bei {name}: gehört schon zu {owner}"));
+                report.barcodes_skipped.push(SkippedBarcode {
+                    code: code.clone(),
+                    article: name.clone(),
+                    owner: Some(owner.clone()),
+                });
             } else {
                 sqlx::query("INSERT INTO barcodes (code, article_id) VALUES (?, ?)")
                     .bind(&code)
@@ -658,14 +799,14 @@ pub async fn import(pool: &SqlitePool, export: &Export, dry_run: bool) -> Result
             report.users_with_token.push(name.clone());
         }
         if u.debt_allowed == Some(false) || u.debt_hard_limit_cents.is_some_and(|l| l != 0) {
-            let limit = match (u.debt_allowed, u.debt_hard_limit_cents) {
-                (Some(false), _) => "keine Schulden erlaubt".to_string(),
-                (_, Some(l)) => format!("Grenze {}", euro(l)),
-                _ => String::new(),
-            };
-            report
-                .users_with_debt_limits
-                .push(format!("{name}: {limit}"));
+            report.users_with_debt_limits.push(DebtLimit {
+                name: name.clone(),
+                limit_cents: if u.debt_allowed == Some(false) {
+                    None
+                } else {
+                    u.debt_hard_limit_cents
+                },
+            });
         }
         let created = [first_tx.get(u.name.as_str()).copied(), u.lastchanged]
             .into_iter()

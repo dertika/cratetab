@@ -43,7 +43,18 @@ Der Import läuft nur in eine **leere** Datenbank, also ohne Benutzer, Artikel
 und Buchungen. Admin-Zugänge dürfen schon existieren. Demo-Daten deshalb
 ausschalten (`CRATETAB_SEED_DEMO=false`).
 
-## 3. Probelauf
+## 3. Probelauf und Import im Browser (empfohlen)
+
+Im Admin-Bereich unter **Import** die Datei `fnordcredit-export.tar.gz` hochladen
+(oder `users.json`, `transactions.json` und `products.json` zusammen auswählen).
+Crate Tab macht sofort einen Probelauf und zeigt den Bericht. Erst ein Klick
+auf **Jetzt importieren** übernimmt die Daten. Der Upload wird nur im
+Arbeitsspeicher gehalten und verfällt nach 30 Minuten.
+
+Läuft Crate Tab hinter nginx, muss das Upload-Limit groß genug sein
+(`client_max_body_size 64m;`, siehe README).
+
+## 3b. Probelauf auf der Kommandozeile (Alternative)
 
 Der Probelauf liest alles, führt den kompletten Import durch und rollt ihn am
 Ende zurück. Es wird nichts gespeichert, aber ihr seht genau, was passieren würde.
@@ -99,7 +110,7 @@ Was die Hinweise bedeuten:
 
 ## 5. Import
 
-Denselben Befehl ohne `--dry-run` ausführen. Alles läuft in einer einzigen
+Im Browser: **Jetzt importieren**. Auf der Kommandozeile: denselben Befehl ohne `--dry-run` ausführen. Alles läuft in einer einzigen
 Datenbank-Transaktion: Bei einem Fehler bleibt die Datenbank unverändert. Ein
 zweiter Import wird abgelehnt.
 

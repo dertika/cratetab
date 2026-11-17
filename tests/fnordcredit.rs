@@ -225,3 +225,39 @@ async fn missing_files_are_reported() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn upload_variants() {
+    let users = br#"[{"name": "Ada", "credit": 1}]"#.to_vec();
+    let txs =
+        br#"[{"id": "1", "username": "Ada", "delta": 1, "time": "2016-01-01T00:00:00Z"}]"#.to_vec();
+
+    // Einzelne JSON-Dateien; unbekannte Dateien werden ignoriert
+    let export = fnordcredit::load_upload(vec![
+        ("users.json".into(), users.clone()),
+        ("transactions.json".into(), txs.clone()),
+        ("notizen.txt".into(), b"egal".to_vec()),
+    ])
+    .unwrap();
+    assert_eq!(export.users.len(), 1);
+    assert_eq!(export.transactions.len(), 1);
+    assert!(export.products.is_empty());
+
+    // Fehlende Tabelle
+    let err = fnordcredit::load_upload(vec![("users.json".into(), users.clone())]).unwrap_err();
+    assert!(err.to_string().contains("transactions.json"), "{err}");
+
+    // Doppelte Tabelle
+    let err = fnordcredit::load_upload(vec![
+        ("users.json".into(), users.clone()),
+        ("a/users.json".into(), users),
+        ("transactions.json".into(), txs),
+    ])
+    .unwrap_err();
+    assert!(err.to_string().contains("mehrfach"), "{err}");
+
+    // Kaputtes Archiv
+    let err =
+        fnordcredit::load_upload(vec![("x.tar.gz".into(), vec![0x1f, 0x8b, 0, 1, 2])]).unwrap_err();
+    assert!(!err.to_string().is_empty());
+}
