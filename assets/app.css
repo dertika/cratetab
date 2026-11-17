@@ -250,12 +250,15 @@ main {
   border-radius: 50%;
   font-weight: 800;
   font-size: 1.6rem;
-  color: #fff;
+  /* bewusst ohne Farbe: neutraler Kreis passend zu hellem und dunklem Modus */
+  background: var(--surface-2);
+  color: var(--text);
+  border: 2px solid var(--border);
 }
 .avatar-big { width: 96px; height: 96px; font-size: 2.4rem; margin-bottom: 8px; }
 .pin-badge { position: absolute; top: 8px; right: 10px; font-size: .9rem; }
 
-/* Farben für Avatare und Platzhalterbilder (Klasse c0 … c7) */
+/* Farben für Platzhalterbilder von Artikeln ohne Bild (Klasse c0 … c7) */
 .c0 { background: #e4571b; } .c1 { background: #1f6f8b; } .c2 { background: #2e7d32; }
 .c3 { background: #8e44ad; } .c4 { background: #b7791f; } .c5 { background: #c2185b; }
 .c6 { background: #00838f; } .c7 { background: #5d4037; }
