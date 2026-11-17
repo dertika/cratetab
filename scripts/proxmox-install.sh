@@ -57,7 +57,10 @@ TEMPLATE="$(pvesm path "$TEMPLATE_STORAGE:vztmpl/$ASSET")"
 say "Lade Template nach $TEMPLATE"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-curl -fL --progress-bar -o "$tmp/$ASSET" "$BASE/$ASSET"
+curl -fL --progress-bar -o "$tmp/$ASSET" "$BASE/$ASSET" \
+    || die "Template nicht gefunden: $BASE/$ASSET
+       Gibt es schon ein Release mit Template? https://github.com/$REPO/releases
+       Eine bestimmte Version wählen: VERSION=v1.2.3 bash proxmox-install.sh"
 curl -fsSL -o "$tmp/$ASSET.sha256" "$BASE/$ASSET.sha256"
 (cd "$tmp" && sha256sum -c "$ASSET.sha256") || die "Prüfsumme stimmt nicht."
 mkdir -p "$(dirname "$TEMPLATE")"
