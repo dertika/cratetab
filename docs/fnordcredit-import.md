@@ -6,20 +6,36 @@ RethinkDB** (Versionen bis Anfang 2017).
 
 ## 1. Daten aus fnordcredit exportieren
 
-Auf dem Rechner mit der RethinkDB (braucht das Python-Paket `rethinkdb`, das
-den Befehl `rethinkdb export` mitbringt):
+> Tipp: fnordcredit vorher stoppen, damit während des Exports niemand bucht.
+
+**Variante A – mit dem Skript aus diesem Repository (empfohlen, kein Python nötig).**
+Es nutzt den RethinkDB-Treiber und die `config.js` der vorhandenen
+fnordcredit-Installation, passt also immer zur Version eures Servers:
 
 ```sh
-pip install rethinkdb          # falls „rethinkdb export“ fehlt
-rethinkdb export -c localhost:28015 -e fnordcredit --format json -d fnordcredit-export
-tar czf fnordcredit-export.tar.gz fnordcredit-export
+curl -fsSL -o /root/fnordcredit-export.js \
+  https://raw.githubusercontent.com/dertika/cratetab/main/scripts/fnordcredit-export.js
+cd /pfad/zu/fnordcredit            # dort, wo config.js und node_modules liegen
+node /root/fnordcredit-export.js /root/fnordcredit-export
 ```
 
-Darin liegen `fnordcredit/users.json`, `transactions.json` und (falls
-vorhanden) `products.json`. Den Namen der Datenbank (`fnordcredit`) und den Port
-findet ihr in der `config.js` eurer fnordcredit-Installation.
+Wo fnordcredit liegt, verrät z. B. `find / -name config.js -path '*fnordcredit*' -not -path '*/node_modules/*'`.
 
-> Tipp: fnordcredit vorher stoppen, damit während des Exports niemand bucht.
+**Variante B – mit `rethinkdb export`.** Das braucht den Python-Treiber von
+RethinkDB (sonst: „The rethinkdb-export command depends on the RethinkDB Python
+driver“). Der aktuelle Treiber spricht nur mit RethinkDB ab Version 2.3:
+
+```sh
+python3 -m venv /root/rdb && /root/rdb/bin/pip install rethinkdb
+PATH=/root/rdb/bin:$PATH rethinkdb export -e fnordcredit --format json -d /root/fnordcredit-export
+```
+
+Beide Varianten liefern dasselbe: `fnordcredit/users.json`, `transactions.json`
+und (falls vorhanden) `products.json`. Danach einpacken:
+
+```sh
+cd /root && tar czf fnordcredit-export.tar.gz fnordcredit-export
+```
 
 ## 2. Crate Tab frisch aufsetzen
 

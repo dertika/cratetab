@@ -395,7 +395,7 @@ Crate Tab übernimmt aus dem alten fnordcredit (RethinkDB) Benutzer, Guthaben, P
 Barcodes und die komplette Buchungshistorie mit Original-Zeitstempeln:
 
 ```sh
-rethinkdb export -e fnordcredit --format json -d fnordcredit-export     # auf dem alten Server
+node fnordcredit-export.js fnordcredit-export                           # auf dem alten Server, siehe Doku
 cratetab import-fnordcredit fnordcredit-export --dry-run                # Probelauf mit Bericht
 cratetab import-fnordcredit fnordcredit-export                          # Import
 ```
