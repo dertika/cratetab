@@ -41,7 +41,7 @@ async fn balance(pool: &SqlitePool, user: i64) -> i64 {
 #[tokio::test]
 async fn deposit_and_purchase_change_balance() {
     let (pool, user, mate) = setup().await;
-    ledger::deposit(&pool, user, 1000, MAX_DEPOSIT)
+    ledger::deposit(&pool, user, 1000, MAX_DEPOSIT, None)
         .await
         .unwrap();
     assert_eq!(balance(&pool, user).await, 1000);
@@ -106,18 +106,18 @@ async fn minimum_balance_is_enforced() {
 async fn deposit_limits() {
     let (pool, user, _) = setup().await;
     assert!(matches!(
-        ledger::deposit(&pool, user, 0, MAX_DEPOSIT).await,
+        ledger::deposit(&pool, user, 0, MAX_DEPOSIT, None).await,
         Err(LedgerError::InvalidAmount)
     ));
     assert!(matches!(
-        ledger::deposit(&pool, user, -500, MAX_DEPOSIT).await,
+        ledger::deposit(&pool, user, -500, MAX_DEPOSIT, None).await,
         Err(LedgerError::InvalidAmount)
     ));
     assert!(matches!(
-        ledger::deposit(&pool, user, MAX_DEPOSIT + 1, MAX_DEPOSIT).await,
+        ledger::deposit(&pool, user, MAX_DEPOSIT + 1, MAX_DEPOSIT, None).await,
         Err(LedgerError::AmountTooLarge)
     ));
-    ledger::deposit(&pool, user, MAX_DEPOSIT, MAX_DEPOSIT)
+    ledger::deposit(&pool, user, MAX_DEPOSIT, MAX_DEPOSIT, None)
         .await
         .unwrap();
     assert_eq!(balance(&pool, user).await, MAX_DEPOSIT);
@@ -152,7 +152,7 @@ async fn inactive_user_and_article_cannot_book() {
         .await
         .unwrap();
     assert!(matches!(
-        ledger::deposit(&pool, user, 500, MAX_DEPOSIT).await,
+        ledger::deposit(&pool, user, 500, MAX_DEPOSIT, None).await,
         Err(LedgerError::UserInactive)
     ));
 }
@@ -160,7 +160,7 @@ async fn inactive_user_and_article_cannot_book() {
 #[tokio::test]
 async fn undo_creates_reversal_within_window() {
     let (pool, user, mate) = setup().await;
-    ledger::deposit(&pool, user, 500, MAX_DEPOSIT)
+    ledger::deposit(&pool, user, 500, MAX_DEPOSIT, None)
         .await
         .unwrap();
     let purchase = ledger::purchase(&pool, user, mate, MIN).await.unwrap();
@@ -220,7 +220,7 @@ async fn undo_expires_after_window() {
 #[tokio::test]
 async fn undo_of_deposit() {
     let (pool, user, _) = setup().await;
-    ledger::deposit(&pool, user, 2000, MAX_DEPOSIT)
+    ledger::deposit(&pool, user, 2000, MAX_DEPOSIT, None)
         .await
         .unwrap();
     let r = ledger::undo_last(&pool, user, WINDOW, Utc::now())
@@ -298,7 +298,7 @@ async fn admin_reversal_once_only() {
 #[tokio::test]
 async fn balances_are_recomputable() {
     let (pool, user, mate) = setup().await;
-    ledger::deposit(&pool, user, 1000, MAX_DEPOSIT)
+    ledger::deposit(&pool, user, 1000, MAX_DEPOSIT, None)
         .await
         .unwrap();
     ledger::purchase(&pool, user, mate, MIN).await.unwrap();
@@ -360,4 +360,42 @@ async fn concurrent_purchases_respect_minimum() {
     assert!(ledger::verify_balances(&pool).await.unwrap().is_empty());
     pool.close().await;
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn maximum_balance_limits_deposits() {
+    let (pool, user, mate) = setup().await;
+    let max = Some(5000);
+    ledger::deposit(&pool, user, 3000, MAX_DEPOSIT, max)
+        .await
+        .unwrap();
+    // 30 € + 20 € = genau 50 € ist erlaubt
+    ledger::deposit(&pool, user, 2000, MAX_DEPOSIT, max)
+        .await
+        .unwrap();
+    // darüber nicht
+    let err = ledger::deposit(&pool, user, 1, MAX_DEPOSIT, max)
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        LedgerError::BalanceTooHigh {
+            balance: 5000,
+            max: 5000
+        }
+    ));
+    assert_eq!(balance(&pool, user).await, 5000);
+    // Nach einem Kauf ist wieder Platz
+    ledger::purchase(&pool, user, mate, MIN).await.unwrap();
+    ledger::deposit(&pool, user, 150, MAX_DEPOSIT, max)
+        .await
+        .unwrap();
+    // Korrekturen durch Admins sind ausgenommen
+    let admin = cratetab::admins::create(&pool, "admin3", "geheim123")
+        .await
+        .unwrap();
+    ledger::correction(&pool, user, 10_000, "Spende", admin)
+        .await
+        .unwrap();
+    assert_eq!(balance(&pool, user).await, 15_000);
 }

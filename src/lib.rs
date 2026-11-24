@@ -19,6 +19,7 @@
 //! | [`assets`]   | eingebettete statische Dateien                            |
 //! | [`web`]      | HTTP-Routen und Seiten                                    |
 //! | [`seed`]     | Demo-Daten                                                |
+//! | [`settings`] | im Admin-Bereich änderbare Einstellungen                  |
 //! | [`fnordcredit`] | Import aus dem alten fnordcredit (RethinkDB-Export)    |
 
 pub mod admins;
@@ -33,6 +34,7 @@ pub mod money;
 pub mod password;
 pub mod seed;
 pub mod sessions;
+pub mod settings;
 pub mod users;
 pub mod web;
 
@@ -62,10 +64,19 @@ pub async fn state_with_pool(
     if config.seed_demo {
         seed::seed_if_empty(&pool).await?;
     }
+    let settings = settings::load(&pool, &config).await?;
+    if !locales.is_available(&settings.default_language) {
+        tracing::warn!(
+            "Gespeicherte Standardsprache „{}“ gibt es nicht, es gilt „{}“",
+            settings.default_language,
+            config.default_language
+        );
+    }
     Ok(web::AppState {
         pool,
         config: Arc::new(config),
         locales: Arc::new(locales),
+        settings: Arc::new(std::sync::RwLock::new(settings)),
         pending_import: Default::default(),
     })
 }

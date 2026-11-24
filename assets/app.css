@@ -435,6 +435,7 @@ main {
 .choice { display: flex; align-items: center; gap: 10px; min-height: 48px; font-weight: 500; cursor: pointer; }
 .choice input { width: 24px; height: 24px; accent-color: var(--primary); }
 .choice img { border-radius: 3px; }
+.setting-source { display: block; font-size: .8rem; color: var(--muted); margin: -2px 0 6px; }
 
 .cards {
   display: grid;

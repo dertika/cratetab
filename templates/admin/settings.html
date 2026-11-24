@@ -1,0 +1,80 @@
+{% extends "admin/layout.html" %}
+{% import "macros.html" as m %}
+{% block title %}{{ ctx.t.t("settings-page-title") }} · {% endblock %}
+{% block nav_settings %}active{% endblock %}
+
+{% block content %}
+<h1>{{ ctx.t.t("settings-page-title") }}</h1>
+<p class="hint">{{ ctx.t.t("settings-intro") }}</p>
+{% if saved %}<div class="flash flash-ok" role="status">{{ ctx.t.t("saved") }}</div>{% endif %}
+{% if let Some(e) = error %}<div class="flash flash-error" role="alert">{{ e }}</div>{% endif %}
+
+<form method="post" action="/admin/settings" class="form">
+  <div class="cards">
+    <section class="card">
+      <h2>{{ ctx.t.t("settings-section-general") }}</h2>
+      <label for="club_name">{{ ctx.t.t("settings-club-name") }}</label>
+      <input type="text" id="club_name" name="club_name" value="{{ form.club_name }}" required maxlength="80">
+      {% call m::setting_source("club_name", "CRATETAB_CLUB_NAME") %}{% endcall %}
+
+      <label for="default_language">{{ ctx.t.t("settings-default-language") }}</label>
+      <select id="default_language" name="default_language">
+        {%- for l in ctx.t.languages() %}
+        <option value="{{ l.code }}"{% if l.code == form.default_language %} selected{% endif %}>{{ l.name }}</option>
+        {%- endfor %}
+      </select>
+      {% call m::setting_source("default_language", "CRATETAB_DEFAULT_LANGUAGE") %}{% endcall %}
+
+      <label class="choice">
+        <input type="checkbox" name="self_registration"{% if form.self_registration %} checked{% endif %}>
+        <span>{{ ctx.t.t("settings-self-registration") }}</span>
+      </label>
+      {% call m::setting_source("self_registration", "CRATETAB_SELF_REGISTRATION") %}{% endcall %}
+    </section>
+
+    <section class="card">
+      <h2>{{ ctx.t.t("settings-section-balance") }}</h2>
+      <label for="min_balance">{{ ctx.t.t("settings-min-balance") }}</label>
+      <input type="text" id="min_balance" name="min_balance" value="{{ form.min_balance }}" inputmode="decimal" required>
+      <p class="hint">{{ ctx.t.t("settings-min-balance-hint") }}</p>
+      {% call m::setting_source("min_balance_cents", "CRATETAB_MIN_BALANCE") %}{% endcall %}
+
+      <label for="max_balance">{{ ctx.t.t("settings-max-balance") }}</label>
+      <input type="text" id="max_balance" name="max_balance" value="{{ form.max_balance }}" inputmode="decimal">
+      <p class="hint">{{ ctx.t.t("settings-max-balance-hint") }}</p>
+      {% call m::setting_source("max_balance_cents", "CRATETAB_MAX_BALANCE") %}{% endcall %}
+
+      <label for="max_deposit">{{ ctx.t.t("settings-max-deposit") }}</label>
+      <input type="text" id="max_deposit" name="max_deposit" value="{{ form.max_deposit }}" inputmode="decimal" required>
+      {% call m::setting_source("max_deposit_cents", "CRATETAB_MAX_DEPOSIT") %}{% endcall %}
+
+      <label for="deposit_presets">{{ ctx.t.t("settings-deposit-presets") }}</label>
+      <input type="text" id="deposit_presets" name="deposit_presets" value="{{ form.deposit_presets }}">
+      <p class="hint">{{ ctx.t.t("settings-deposit-presets-hint") }}</p>
+      {% call m::setting_source("deposit_presets_cents", "CRATETAB_DEPOSIT_PRESETS") %}{% endcall %}
+    </section>
+
+    <section class="card">
+      <h2>{{ ctx.t.t("settings-section-kiosk") }}</h2>
+      <label for="idle_timeout">{{ ctx.t.t("settings-idle-timeout") }}</label>
+      <input type="number" id="idle_timeout" name="idle_timeout" value="{{ form.idle_timeout }}" min="10" max="3600" required>
+      {% call m::setting_source("idle_timeout_secs", "CRATETAB_IDLE_TIMEOUT") %}{% endcall %}
+
+      <label for="undo_window">{{ ctx.t.t("settings-undo-window") }}</label>
+      <input type="number" id="undo_window" name="undo_window" value="{{ form.undo_window }}" min="0" max="3600" required>
+      <p class="hint">{{ ctx.t.t("settings-undo-window-hint") }}</p>
+      {% call m::setting_source("undo_window_secs", "CRATETAB_UNDO_WINDOW") %}{% endcall %}
+    </section>
+  </div>
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">{{ ctx.t.t("save") }}</button>
+  </div>
+</form>
+
+{% if !current.stored.is_empty() %}
+<form method="post" action="/admin/settings/reset" class="form-inline" data-confirm="{{ ctx.t.t("settings-reset-confirm") }}">
+  <button type="submit" class="btn btn-ghost">{{ ctx.t.t("settings-reset") }}</button>
+</form>
+{% endif %}
+<p class="hint">{{ ctx.t.t("settings-file-hint") }}</p>
+{% endblock %}

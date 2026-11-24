@@ -186,22 +186,33 @@ impl Locales {
 
     /// Wählt anhand des `Accept-Language`-Headers die beste verfügbare Sprache.
     pub fn negotiate(&self, accept_language: &str) -> String {
+        self.negotiate_with_default(accept_language, &self.default.clone())
+    }
+
+    /// Wie [`Locales::negotiate`], aber mit einer anderen Standardsprache
+    /// (z. B. aus den Einstellungen im Admin-Bereich).
+    pub fn negotiate_with_default(&self, accept_language: &str, default: &str) -> String {
+        let default = if self.is_available(default) {
+            default
+        } else {
+            self.default.as_str()
+        };
         let requested = parse_accepted_languages(accept_language);
         let available: Vec<LanguageIdentifier> = self
             .languages
             .iter()
             .filter_map(|l| l.code.parse().ok())
             .collect();
-        let default: LanguageIdentifier = self.default.parse().unwrap_or_default();
+        let default_id: LanguageIdentifier = default.parse().unwrap_or_default();
         negotiate_languages(
             &requested,
             &available,
-            Some(&default),
+            Some(&default_id),
             NegotiationStrategy::Filtering,
         )
         .first()
         .map(|l| l.to_string())
-        .unwrap_or_else(|| self.default.clone())
+        .unwrap_or_else(|| default.to_string())
     }
 
     /// Prüft, ob alle Sprachen dieselben Schlüssel und Variablen haben wie die

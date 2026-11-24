@@ -14,6 +14,7 @@ pub mod admin;
 pub mod import;
 pub mod kiosk;
 pub mod lang;
+pub mod settings_page;
 
 use std::sync::Arc;
 
@@ -34,6 +35,7 @@ use crate::{
     assets,
     config::Config,
     i18n::{Locales, Translator},
+    settings::Settings,
     users::User,
 };
 
@@ -46,8 +48,30 @@ pub struct AppState {
     pub pool: SqlitePool,
     pub config: Arc<Config>,
     pub locales: Arc<Locales>,
+    /// Im Admin-Bereich änderbare Einstellungen (siehe [`crate::settings`])
+    pub settings: Arc<std::sync::RwLock<Settings>>,
     /// Hochgeladener fnordcredit-Export, der auf die Bestätigung wartet
     pub pending_import: Arc<std::sync::Mutex<Option<import::PendingImport>>>,
+}
+
+impl AppState {
+    /// Die aktuell gültigen Einstellungen (Kopie, damit keine Sperre gehalten wird).
+    pub fn settings(&self) -> Settings {
+        match self.settings.read() {
+            Ok(s) => s.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        }
+    }
+
+    /// Lädt die Einstellungen nach einer Änderung neu aus der Datenbank.
+    pub async fn reload_settings(&self) -> Result<(), sqlx::Error> {
+        let new = crate::settings::load(&self.pool, &self.config).await?;
+        match self.settings.write() {
+            Ok(mut s) => *s = new,
+            Err(poisoned) => *poisoned.into_inner() = new,
+        }
+        Ok(())
+    }
 }
 
 /// Baut den kompletten Router der Anwendung.
@@ -211,6 +235,7 @@ impl FromRequestParts<AppState> for PageCtx {
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
         let jar = CookieJar::from_headers(&parts.headers);
+        let settings = state.settings();
         // 1. Cookie, 2. Accept-Language des Browsers, 3. Standardsprache
         let lang = jar
             .get(LANG_COOKIE)
@@ -222,7 +247,9 @@ impl FromRequestParts<AppState> for PageCtx {
                     .get(header::ACCEPT_LANGUAGE)
                     .and_then(|v| v.to_str().ok())
                     .unwrap_or("");
-                state.locales.negotiate(accept)
+                state
+                    .locales
+                    .negotiate_with_default(accept, &settings.default_language)
             });
         let secure = parts
             .headers
@@ -232,7 +259,7 @@ impl FromRequestParts<AppState> for PageCtx {
         let path = original_path(parts);
         Ok(PageCtx {
             t: Translator::new(state.locales.clone(), &lang),
-            club_name: state.config.club_name.clone(),
+            club_name: settings.club_name,
             path,
             secure,
             idle_timeout: None,

@@ -55,7 +55,7 @@ pub fn routes() -> Router<AppState> {
 
 /// Gültigkeit einer Kiosk-Sitzung: Inaktivitäts-Timeout plus etwas Puffer.
 fn kiosk_ttl(state: &AppState) -> chrono::Duration {
-    chrono::Duration::seconds(state.config.idle_timeout_secs as i64 + 30)
+    chrono::Duration::seconds(state.settings().idle_timeout_secs as i64 + 30)
 }
 
 /// Liefert den Benutzer, wenn er aktiv ist und dieses Gerät auf ihn zugreifen
@@ -148,12 +148,12 @@ async fn home(
     let users = users::list_active(&state.pool).await?;
     let mut letters: Vec<String> = users.iter().map(User::initial).collect();
     letters.dedup();
-    let ctx = ctx.with_idle(state.config.idle_timeout_secs);
+    let ctx = ctx.with_idle(state.settings().idle_timeout_secs);
     let page = render(&HomeTemplate {
         ctx,
         users,
         letters,
-        self_registration: state.config.self_registration,
+        self_registration: state.settings().self_registration,
     })?;
     Ok((jar, page).into_response())
 }
@@ -180,10 +180,10 @@ struct RegisterForm {
 }
 
 async fn register_form(State(state): State<AppState>, ctx: PageCtx) -> Result<Response, AppError> {
-    if !state.config.self_registration {
+    if !state.settings().self_registration {
         return Err(AppError::NotFound);
     }
-    let ctx = ctx.with_idle(state.config.idle_timeout_secs * 3);
+    let ctx = ctx.with_idle(state.settings().idle_timeout_secs * 3);
     Ok(render(&RegisterTemplate {
         ctx,
         name: String::new(),
@@ -198,7 +198,7 @@ async fn register(
     jar: CookieJar,
     Form(form): Form<RegisterForm>,
 ) -> Result<Response, AppError> {
-    if !state.config.self_registration {
+    if !state.settings().self_registration {
         return Err(AppError::NotFound);
     }
     let pin = form.pin.trim();
@@ -226,7 +226,7 @@ async fn register(
         }
         Err(e) => {
             let error = Some(user_error_text(&ctx.t, &e));
-            let ctx = ctx.with_idle(state.config.idle_timeout_secs * 3);
+            let ctx = ctx.with_idle(state.settings().idle_timeout_secs * 3);
             Ok(render(&RegisterTemplate {
                 ctx,
                 name: form.name,
@@ -281,7 +281,7 @@ async fn pin_form(
     }
     let ctx = ctx
         .for_user(&user, &state.locales)
-        .with_idle(state.config.idle_timeout_secs);
+        .with_idle(state.settings().idle_timeout_secs);
     Ok(render(&PinTemplate {
         ctx,
         user,
@@ -303,7 +303,7 @@ async fn pin_submit(
         .ok_or(AppError::NotFound)?;
     let ctx = ctx
         .for_user(&user, &state.locales)
-        .with_idle(state.config.idle_timeout_secs);
+        .with_idle(state.settings().idle_timeout_secs);
     // PINs bestehen nur aus Ziffern. Alles andere gar nicht erst prüfen (zählt
     // auch nicht als Fehlversuch).
     let pin = form.pin.trim();
@@ -413,7 +413,7 @@ async fn status_view(
         .map(|u| u.balance_cents)
         .unwrap_or_default();
     let now = Utc::now();
-    let window = state.config.undo_window_secs;
+    let window = state.settings().undo_window_secs;
     let undo = match ledger::last_undoable(&state.pool, user_id, window, now).await? {
         Some(tx) => {
             let what = match tx.kind {
@@ -439,7 +439,7 @@ async fn status_view(
     };
     Ok(StatusView {
         balance_cents,
-        min_balance_cents: state.config.min_balance_cents,
+        min_balance_cents: state.settings().min_balance_cents,
         flash,
         undo,
     })
@@ -455,11 +455,11 @@ async fn user_page(
     let user = guard!(state, jar, headers, id);
     let ctx = ctx
         .for_user(&user, &state.locales)
-        .with_idle(state.config.idle_timeout_secs);
+        .with_idle(state.settings().idle_timeout_secs);
     let articles = articles::list_active(&state.pool, ctx.t.lang()).await?;
     let status = status_view(&state, &ctx.t, id, None).await?;
     let presets = state
-        .config
+        .settings()
         .deposit_presets_cents
         .iter()
         .map(|&cents| Preset {
@@ -473,7 +473,7 @@ async fn user_page(
         articles,
         status,
         presets,
-        max_deposit_cents: state.config.max_deposit_cents,
+        max_deposit_cents: state.settings().max_deposit_cents,
     })?
     .into_response())
 }
@@ -501,6 +501,7 @@ fn ledger_error_text(t: &Translator, e: &LedgerError, min_balance: i64) -> Optio
         LedgerError::UserInactive | LedgerError::UserNotFound => t.t("error-user-not-found"),
         LedgerError::InvalidAmount => t.t("error-amount-invalid"),
         LedgerError::AmountTooLarge => t.t("error-amount-too-large"),
+        LedgerError::BalanceTooHigh { max, .. } => t.t1("error-balance-max", "max", t.money(*max)),
         LedgerError::NothingToUndo | LedgerError::AlreadyReversed | LedgerError::NotReversible => {
             t.t("error-nothing-to-undo")
         }
@@ -517,7 +518,7 @@ async fn do_purchase(
     user: User,
     article_id: i64,
 ) -> Result<Response, AppError> {
-    let min = state.config.min_balance_cents;
+    let min = state.settings().min_balance_cents;
     let flash = match ledger::purchase(&state.pool, user.id, article_id, min).await {
         Ok(tx) => {
             let name = articles::get(&state.pool, article_id, ctx.t.lang())
@@ -593,7 +594,15 @@ async fn deposit(
     let flash = match money::parse_cents(&form.amount) {
         Err(_) => Flash::error(ctx.t.t("error-amount-invalid")),
         Ok(cents) => {
-            match ledger::deposit(&state.pool, id, cents, state.config.max_deposit_cents).await {
+            match ledger::deposit(
+                &state.pool,
+                id,
+                cents,
+                state.settings().max_deposit_cents,
+                state.settings().max_balance_cents,
+            )
+            .await
+            {
                 Ok(tx) => Flash::ok(
                     ctx.t
                         .t1("deposit-ok", "amount", ctx.t.money(tx.amount_cents)),
@@ -601,10 +610,10 @@ async fn deposit(
                 Err(LedgerError::AmountTooLarge) => Flash::error(ctx.t.t1(
                     "error-deposit-max",
                     "max",
-                    ctx.t.money(state.config.max_deposit_cents),
+                    ctx.t.money(state.settings().max_deposit_cents),
                 )),
                 Err(e) => Flash::error(
-                    ledger_error_text(&ctx.t, &e, state.config.min_balance_cents).ok_or(e)?,
+                    ledger_error_text(&ctx.t, &e, state.settings().min_balance_cents).ok_or(e)?,
                 ),
             }
         }
@@ -621,13 +630,19 @@ async fn undo(
 ) -> Result<Response, AppError> {
     let user = guard!(state, jar, headers, id);
     let ctx = ctx.for_user(&user, &state.locales);
-    let flash =
-        match ledger::undo_last(&state.pool, id, state.config.undo_window_secs, Utc::now()).await {
-            Ok(tx) => Flash::ok(ctx.t.t1("undo-ok", "amount", ctx.t.money(tx.amount_cents))),
-            Err(e) => Flash::error(
-                ledger_error_text(&ctx.t, &e, state.config.min_balance_cents).ok_or(e)?,
-            ),
-        };
+    let flash = match ledger::undo_last(
+        &state.pool,
+        id,
+        state.settings().undo_window_secs,
+        Utc::now(),
+    )
+    .await
+    {
+        Ok(tx) => Flash::ok(ctx.t.t1("undo-ok", "amount", ctx.t.money(tx.amount_cents))),
+        Err(e) => Flash::error(
+            ledger_error_text(&ctx.t, &e, state.settings().min_balance_cents).ok_or(e)?,
+        ),
+    };
     respond_status(&state, ctx, user, flash).await
 }
 
@@ -654,7 +669,7 @@ async fn render_settings(
         .ok_or(AppError::NotFound)?;
     let ctx = ctx
         .for_user(&user, &state.locales)
-        .with_idle(state.config.idle_timeout_secs * 2);
+        .with_idle(state.settings().idle_timeout_secs * 2);
     Ok(render(&SettingsTemplate { ctx, user, message })?.into_response())
 }
 

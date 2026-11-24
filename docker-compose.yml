@@ -24,6 +24,8 @@ services:
     volumes:
       - ./data:/data
     environment:
+      # Startwerte; im Admin-Bereich unter „Einstellungen“ änderbar (dort gespeicherte
+      # Werte haben Vorrang): Vereinsname, Minimal-/Höchstguthaben, Sprache …
       CRATETAB_CLUB_NAME: "Mein Verein e. V."
       CRATETAB_CURRENCY: "€"
       CRATETAB_MIN_BALANCE: "-10"

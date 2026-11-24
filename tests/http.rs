@@ -279,7 +279,7 @@ async fn self_registration() {
 async fn admin_login_and_csv() {
     let (app, state) = app().await;
     let user = users::create(&state.pool, "Clara", None).await.unwrap();
-    cratetab::ledger::deposit(&state.pool, user.id, 1234, 10_000)
+    cratetab::ledger::deposit(&state.pool, user.id, 1234, 10_000, None)
         .await
         .unwrap();
 
@@ -665,4 +665,78 @@ async fn admin_upload_import() {
     // Ohne Anmeldung kein Zugriff
     let r = send(&app, get("/admin/import", None)).await;
     assert_eq!(r.status, StatusCode::SEE_OTHER);
+}
+
+#[tokio::test]
+async fn admin_settings_apply_immediately() {
+    let (app, state) = app().await;
+    let user = users::create(&state.pool, "Sparfuchs", None).await.unwrap();
+    let r = send(
+        &app,
+        post(
+            "/admin/login",
+            "username=admin&password=admin-passwort",
+            None,
+        ),
+    )
+    .await;
+    let cookie = r
+        .cookies
+        .iter()
+        .find(|c| c.starts_with("admin_session="))
+        .unwrap()
+        .clone();
+
+    let r = send(&app, get("/admin/settings", Some(&cookie))).await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert!(r.body.contains("Testverein"));
+    assert!(
+        r.body
+            .contains("aus der Konfiguration (CRATETAB_CLUB_NAME)")
+    );
+
+    // Ungültige Eingabe wird abgelehnt und nichts gespeichert
+    let bad = "club_name=X&min_balance=5&max_balance=&max_deposit=100&deposit_presets=5+10&idle_timeout=60&undo_window=60&default_language=de";
+    let r = send(&app, post("/admin/settings", bad, Some(&cookie))).await;
+    assert!(r.body.contains("darf nicht positiv sein"), "{}", r.body);
+
+    // Speichern: Vereinsname, Minimalguthaben 0, Höchstguthaben 20 €, keine Selbstregistrierung
+    let good = "club_name=Hackspace+e.+V.&min_balance=0&max_balance=20&max_deposit=50&deposit_presets=2+5&idle_timeout=90&undo_window=30&default_language=de";
+    let r = send(&app, post("/admin/settings", good, Some(&cookie))).await;
+    assert_eq!(r.location.as_deref(), Some("/admin/settings?saved=1"));
+    let r = send(&app, get("/admin/settings", Some(&cookie))).await;
+    assert!(r.body.contains("im Admin-Bereich gespeichert"));
+
+    // Wirkt sofort am Kiosk
+    let r = send(&app, get("/", None)).await;
+    assert!(r.body.contains("Hackspace e. V."));
+    assert!(!r.body.contains("/register"), "Selbstregistrierung ist aus");
+    assert_eq!(
+        send(&app, get("/register", None)).await.status,
+        StatusCode::NOT_FOUND
+    );
+    let r = send(&app, get(&format!("/u/{}", user.id), None)).await;
+    assert!(
+        r.body.contains("2,00 €") && r.body.contains("5,00 €"),
+        "neue Schnellwahl-Beträge"
+    );
+    assert!(r.body.contains(r#"data-idle-timeout="90""#));
+    let r = send(
+        &app,
+        post(&format!("/u/{}/deposit", user.id), "amount=15", None),
+    )
+    .await;
+    assert!(r.body.contains("15,00 €"));
+    let r = send(
+        &app,
+        post(&format!("/u/{}/deposit", user.id), "amount=10", None),
+    )
+    .await;
+    assert!(r.body.contains("Höchstguthaben von 20,00 €"), "{}", r.body);
+
+    // Zurücksetzen: wieder die Konfiguration
+    let r = send(&app, post("/admin/settings/reset", "", Some(&cookie))).await;
+    assert_eq!(r.status, StatusCode::SEE_OTHER);
+    let r = send(&app, get("/", None)).await;
+    assert!(r.body.contains("Testverein"));
 }

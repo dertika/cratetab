@@ -34,6 +34,8 @@ pub struct Config {
     pub undo_window_secs: i64,
     /// Höchstbetrag einer einzelnen Aufladung am Kiosk in Cent
     pub max_deposit_cents: i64,
+    /// Höchster Kontostand nach einer Aufladung in Cent (`None` = keine Grenze)
+    pub max_balance_cents: Option<i64>,
     /// Schnellwahl-Beträge für die Aufladung in Cent
     pub deposit_presets_cents: Vec<i64>,
     /// Zeitzone für die Anzeige von Zeitstempeln
@@ -60,6 +62,7 @@ impl Default for Config {
             idle_timeout_secs: 60,
             undo_window_secs: 60,
             max_deposit_cents: 10_000,
+            max_balance_cents: None,
             deposit_presets_cents: vec![500, 1000, 2000],
             timezone: chrono_tz::Europe::Berlin,
             locales_dir: None,
@@ -134,6 +137,13 @@ impl Config {
         }
         if let Some(v) = var("CRATETAB_MAX_DEPOSIT") {
             c.max_deposit_cents = parse_amount("CRATETAB_MAX_DEPOSIT", &v)?;
+        }
+        if let Some(v) = var("CRATETAB_MAX_BALANCE") {
+            let max = parse_amount("CRATETAB_MAX_BALANCE", &v)?;
+            if max <= 0 {
+                bail!("CRATETAB_MAX_BALANCE muss positiv sein (oder leer für keine Grenze)");
+            }
+            c.max_balance_cents = Some(max);
         }
         if let Some(v) = var("CRATETAB_DEPOSIT_PRESETS") {
             c.deposit_presets_cents = v
