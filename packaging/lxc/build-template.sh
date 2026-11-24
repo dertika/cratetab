@@ -80,6 +80,11 @@ install -m 755 "$BINARY" "$ROOT/usr/local/lib/cratetab/cratetab"
 install -m 755 "$HERE/cratetab" "$ROOT/usr/local/bin/cratetab"
 install -m 755 "$HERE/cratetab-backup" "$ROOT/usr/local/sbin/cratetab-backup"
 install -m 755 "$HERE/cratetab-update" "$ROOT/usr/local/sbin/cratetab-update"
+# Verweise in /usr/bin und /usr/sbin: „pct exec <id> -- cratetab …“ übernimmt das
+# PATH der Proxmox-Shell, und das enthält nicht immer /usr/local/bin
+ln -sf /usr/local/bin/cratetab "$ROOT/usr/bin/cratetab"
+ln -sf /usr/local/sbin/cratetab-backup "$ROOT/usr/sbin/cratetab-backup"
+ln -sf /usr/local/sbin/cratetab-update "$ROOT/usr/sbin/cratetab-update"
 install -m 640 "$HERE/cratetab.env" "$ROOT/etc/cratetab/cratetab.env"
 chroot "$ROOT" chown root:cratetab /etc/cratetab/cratetab.env
 install -m 644 "$HERE/cratetab.service" "$HERE/cratetab-backup.service" \
