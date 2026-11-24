@@ -83,6 +83,7 @@ jobs:
             test -x /usr/bin/curl
             test -L /etc/systemd/system/multi-user.target.wants/cratetab.service
             test -L /etc/systemd/system/timers.target.wants/cratetab-backup.timer
+            test -L /usr/bin/cratetab && test -L /usr/sbin/cratetab-update
             cratetab --version
             cratetab seed-demo
             cratetab check-balances

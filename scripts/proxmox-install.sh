@@ -106,27 +106,40 @@ pct create "$CTID" "$TEMPLATE_STORAGE:vztmpl/$ASSET" \
     --description "Crate Tab – Die Getränkekasse für euren Verein 🦀
 https://github.com/$REPO"
 
+# Befehl im Container ausführen. „pct exec“ übernimmt das PATH der Host-Shell;
+# das ist manchmal nur /sbin:/bin, daher ein vollständiges PATH vorgeben.
+ct() {
+    pct exec "$CTID" -- env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin "$@"
+}
+
 say "Starte Container"
 pct start "$CTID"
 
+# Warten, bis systemd im Container hochgefahren ist („degraded“ ist auch in Ordnung)
+ct timeout 120 systemctl is-system-running --wait >/dev/null 2>&1 || true
+
 # Warten, bis Crate Tab antwortet
 for _ in $(seq 1 30); do
-    if pct exec "$CTID" -- cratetab healthcheck >/dev/null 2>&1; then break; fi
+    if ct cratetab healthcheck >/dev/null 2>&1; then break; fi
     sleep 2
 done
-pct exec "$CTID" -- cratetab healthcheck >/dev/null || die "Crate Tab startet nicht. Logs: pct exec $CTID -- journalctl -u cratetab"
+if ! ct cratetab healthcheck >/dev/null; then
+    ct systemctl status cratetab --no-pager || true
+    ct journalctl -u cratetab -n 30 --no-pager || true
+    die "Crate Tab startet nicht (Status und Log siehe oben)."
+fi
 
 if [ -n "$CLUB_NAME" ]; then
     escaped=$(printf '%s' "$CLUB_NAME" | sed 's/[\/&"]/\\&/g')
-    pct exec "$CTID" -- sed -i "s/^CRATETAB_CLUB_NAME=.*/CRATETAB_CLUB_NAME=\"$escaped\"/" /etc/cratetab/cratetab.env
-    pct exec "$CTID" -- systemctl restart cratetab
+    ct sed -i "s/^CRATETAB_CLUB_NAME=.*/CRATETAB_CLUB_NAME=\"$escaped\"/" /etc/cratetab/cratetab.env
+    ct systemctl restart cratetab
 fi
 
 # Admin-Passwort neu setzen und anzeigen
 password="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)"
-pct exec "$CTID" -- cratetab set-admin-password admin "$password" >/dev/null
+ct cratetab set-admin-password admin "$password" >/dev/null
 
-addr="$(pct exec "$CTID" -- hostname -I | awk '{print $1}')"
+addr="$(ct hostname -I | awk '{print $1}')"
 cat <<EOF
 
   Crate Tab läuft in Container $CTID.
@@ -137,7 +150,7 @@ cat <<EOF
   Passwort:     $password      (bitte notieren und nach dem ersten Login ändern)
 
   Konfiguration: pct exec $CTID -- nano /etc/cratetab/cratetab.env
-  Update:        pct exec $CTID -- cratetab-update
+  Update:        pct exec $CTID -- /usr/local/sbin/cratetab-update
   Konsole:       pct enter $CTID
 
   Für Kamera-Scanner und Handys braucht es HTTPS über einen Reverse Proxy (siehe README).
