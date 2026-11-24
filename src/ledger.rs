@@ -90,6 +90,8 @@ pub enum LedgerError {
     InvalidAmount,
     #[error("Betrag über dem erlaubten Höchstbetrag")]
     AmountTooLarge,
+    #[error("Guthaben würde über dem Höchstguthaben liegen (Kontostand {balance}, Maximum {max})")]
+    BalanceTooHigh { balance: i64, max: i64 },
     #[error("Begründung fehlt")]
     ReasonRequired,
     #[error("keine Buchung zum Rückgängigmachen")]
@@ -224,11 +226,13 @@ pub async fn purchase(
 }
 
 /// Bucht eine Aufladung am Kiosk (Vertrauensbasis: Geld kommt in die Kasse).
+/// Mit `max_balance_cents` darf der Kontostand danach diese Grenze nicht übersteigen.
 pub async fn deposit(
     pool: &SqlitePool,
     user_id: i64,
     amount_cents: i64,
     max_deposit_cents: i64,
+    max_balance_cents: Option<i64>,
 ) -> Result<Transaction> {
     if amount_cents <= 0 {
         return Err(LedgerError::InvalidAmount);
@@ -237,9 +241,14 @@ pub async fn deposit(
         return Err(LedgerError::AmountTooLarge);
     }
     let mut tx = begin(pool).await?;
-    let (_, active) = load_user(&mut tx, user_id).await?;
+    let (balance, active) = load_user(&mut tx, user_id).await?;
     if !active {
         return Err(LedgerError::UserInactive);
+    }
+    if let Some(max) = max_balance_cents
+        && balance + amount_cents > max
+    {
+        return Err(LedgerError::BalanceTooHigh { balance, max });
     }
     let row = insert_tx(
         &mut tx,

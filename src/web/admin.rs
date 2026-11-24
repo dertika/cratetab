@@ -70,6 +70,7 @@ pub fn routes(config: &Config) -> Router<AppState> {
         .route("/admins/password", post(admin_password))
         .route("/admins/{id}/toggle", post(admin_toggle))
         .merge(super::import::routes())
+        .merge(super::settings_page::routes())
 }
 
 // ---------------------------------------------------------------------------

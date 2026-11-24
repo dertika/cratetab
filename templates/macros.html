@@ -15,3 +15,11 @@
   <button type="button" class="key key-muted" data-key="back" aria-label="{{ ctx.t.t("keypad-back") }}">⌫</button>
 </div>
 {% endmacro %}
+
+{#- Admin-Einstellungen: Herkunft eines Wertes (im Admin-Bereich gespeichert
+    oder aus der Konfiguration). Erwartet `current` (Settings) im Template. -#}
+{% macro setting_source(key, env) %}
+<span class="setting-source">
+  {%- if current.is_stored(key) %}{{ ctx.t.t("settings-source-stored") }}{% else %}{{ ctx.t.t1("settings-source-config", "variable", env) }}{% endif -%}
+</span>
+{% endmacro %}

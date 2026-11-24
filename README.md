@@ -97,22 +97,37 @@ Buchungshistorie. Ben und Emma haben die PIN `1234`.
 
 ## Konfiguration
 
-Alle Einstellungen erfolgen über Umgebungsvariablen (in `docker-compose.yml` unter `environment:`).
+Die meisten Einstellungen ändert ihr bequem im **Admin-Bereich unter „Einstellungen“**. Sie
+gelten sofort und liegen in der Datenbank, sind also im Backup enthalten. Die
+Umgebungsvariablen (in `docker-compose.yml` unter `environment:` bzw. im LXC-Template in
+`/etc/cratetab/cratetab.env`) liefern dafür nur die **Startwerte**. Ein im Admin-Bereich
+gespeicherter Wert hat Vorrang. Die Seite zeigt bei jedem Feld, woher der Wert stammt, und
+kann alles auf die Konfiguration zurücksetzen.
+
+**Im Admin-Bereich änderbar** (Umgebungsvariable = Startwert):
 
 | Variable | Standard | Bedeutung |
 |---|---|---|
 | `CRATETAB_CLUB_NAME` | `Mein Verein e. V.` | Vereinsname, steht neben „Crate Tab“ in der Kopfzeile |
-| `CRATETAB_CURRENCY` | `€` | Währungssymbol |
-| `CRATETAB_MIN_BALANCE` | `-10` | Tiefster erlaubter Kontostand (`0` = keine Schulden) |
 | `CRATETAB_DEFAULT_LANGUAGE` | `de` | Sprache, wenn Browser/Cookie nichts Passendes liefern |
+| `CRATETAB_MIN_BALANCE` | `-10` | Tiefster erlaubter Kontostand (`0` = keine Schulden) |
+| `CRATETAB_MAX_BALANCE` | – | Höchster Kontostand nach einer Aufladung am Kiosk (leer = keine Grenze) |
+| `CRATETAB_MAX_DEPOSIT` | `100` | Höchstbetrag einer Aufladung am Kiosk |
+| `CRATETAB_DEPOSIT_PRESETS` | `5 10 20` | Schnellwahl-Beträge, durch Leerzeichen getrennt |
+| `CRATETAB_SELF_REGISTRATION` | `true` | Dürfen sich neue Mitglieder am Kiosk selbst anlegen? |
+| `CRATETAB_IDLE_TIMEOUT` | `60` | Sekunden ohne Eingabe, bis der Kiosk zur Startseite springt |
+| `CRATETAB_UNDO_WINDOW` | `60` | Sekunden, in denen die letzte Buchung rückgängig gemacht werden kann (`0` = aus) |
+
+Korrekturen im Admin-Bereich sind von Minimal- und Höchstguthaben ausgenommen.
+
+**Nur über die Konfiguration** (Änderung erfordert einen Neustart):
+
+| Variable | Standard | Bedeutung |
+|---|---|---|
 | `CRATETAB_ADMIN_PASSWORD` | – | Passwort des ersten Admins `admin`, wird **nur beim allerersten Start** benutzt. Ohne diese Variable wird ein zufälliges Passwort erzeugt und ins Log geschrieben |
 | `CRATETAB_DATABASE` | `data/cratetab.db` (Docker: `/data/cratetab.db`) | Pfad zur SQLite-Datei |
 | `CRATETAB_LISTEN` | `0.0.0.0:8080` | Adresse und Port |
-| `CRATETAB_SELF_REGISTRATION` | `true` | Dürfen sich neue Mitglieder am Kiosk selbst anlegen? |
-| `CRATETAB_IDLE_TIMEOUT` | `60` | Sekunden ohne Eingabe, bis der Kiosk zur Startseite springt |
-| `CRATETAB_UNDO_WINDOW` | `60` | Sekunden, in denen die letzte Buchung rückgängig gemacht werden kann |
-| `CRATETAB_MAX_DEPOSIT` | `100` | Höchstbetrag einer Aufladung am Kiosk |
-| `CRATETAB_DEPOSIT_PRESETS` | `5 10 20` | Schnellwahl-Beträge, durch Leerzeichen getrennt |
+| `CRATETAB_CURRENCY` | `€` | Währungssymbol |
 | `CRATETAB_TIMEZONE` | `Europe/Berlin` | Zeitzone für Anzeige, Filter und Statistik |
 | `CRATETAB_MAX_IMAGE_KB` | `2048` | Maximale Größe eines Artikelbildes |
 | `CRATETAB_LOCALES_DIR` | – | Verzeichnis mit zusätzlichen `.ftl`-Dateien (siehe [Neue Sprache](#neue-sprache-hinzufügen)) |
