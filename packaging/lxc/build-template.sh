@@ -88,7 +88,9 @@ ln -sf /usr/local/sbin/cratetab-update "$ROOT/usr/sbin/cratetab-update"
 install -m 640 "$HERE/cratetab.env" "$ROOT/etc/cratetab/cratetab.env"
 chroot "$ROOT" chown root:cratetab /etc/cratetab/cratetab.env
 install -m 644 "$HERE/cratetab.service" "$HERE/cratetab-backup.service" \
-    "$HERE/cratetab-backup.timer" "$ROOT/etc/systemd/system/"
+    "$HERE/cratetab-backup.timer" "$HERE/cratetab-update.service" \
+    "$HERE/cratetab-update.timer" "$ROOT/etc/systemd/system/"
+# cratetab-update.timer (nächtliches Update) bleibt aus, bis man es einschaltet
 # Dienste aktivieren (dasselbe wie „systemctl enable“, braucht aber kein laufendes systemd)
 install -d "$ROOT/etc/systemd/system/multi-user.target.wants" "$ROOT/etc/systemd/system/timers.target.wants"
 ln -sf /etc/systemd/system/cratetab.service "$ROOT/etc/systemd/system/multi-user.target.wants/cratetab.service"
@@ -103,6 +105,7 @@ cat > "$ROOT/etc/motd" <<'EOF'
   Status/Logs:    systemctl status cratetab   |   journalctl -u cratetab -f
   Backup:         cratetab-backup   (täglich automatisch, /var/lib/cratetab/backups)
   Update:         cratetab-update
+  Auto-Update:    systemctl enable --now cratetab-update.timer
   Hilfe:          cratetab help
 
 EOF

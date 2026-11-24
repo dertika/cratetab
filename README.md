@@ -209,7 +209,8 @@ cratetab check-balances            # Guthaben prüfen
 ```
 
 `cratetab-update` lädt die neue Programmdatei von GitHub und prüft die Prüfsumme. Vorher legt
-es ein Backup an. Startet die neue Version nicht, stellt das Skript die alte wieder her.
+es ein Backup an. Startet die neue Version nicht, stellt das Skript die alte Programmdatei und
+die Datenbank von vor dem Update wieder her. Automatische Updates: siehe [Update](#update).
 Betriebssystem-Updates laufen wie in jedem Debian-Container mit `apt update && apt upgrade`.
 
 ### Variante B: LXC-Container mit Docker
@@ -387,9 +388,46 @@ Nach einer Wiederherstellung (oder jederzeit) prüft
 
 ## Update
 
-LXC-Template: `pct exec 120 -- cratetab-update` (siehe [Variante A](#variante-a-fertiges-lxc-template-ohne-docker-empfohlen)).
+### LXC-Template
 
-Docker:
+Von Hand, auf dem Proxmox-Host:
+
+```sh
+pct exec 120 -- cratetab-update            # neueste Version
+pct exec 120 -- cratetab-update v0.2.0     # bestimmte Version (auch zurück)
+```
+
+Ist die neueste Version schon installiert, tut der Befehl nichts. Sonst läuft er so ab:
+
+1. Programmdatei laden und Prüfsumme kontrollieren
+2. Backup anlegen (`/var/lib/cratetab/backups/…-vor-update.db`)
+3. Dienst neu starten; Migrationen laufen dabei automatisch
+4. Bis zu einer Minute auf den Start warten. Startet die neue Version nicht, kommen alte
+   Programmdatei und Datenbank zurück, und der Befehl endet mit einem Fehler.
+5. Skripte und systemd-Units im Container auf den Stand der neuen Version bringen
+   (`cratetab install-lxc-tools`). Die Konfiguration `/etc/cratetab/cratetab.env` bleibt dabei
+   unverändert.
+
+**Automatisch:** Ein Timer prüft jede Nacht zwischen 4:30 und 5:00 Uhr, ob es eine neue Version
+gibt, und installiert sie mit demselben Ablauf. Er ist aus, bis man ihn einschaltet:
+
+```sh
+pct exec 120 -- systemctl enable --now cratetab-update.timer   # einschalten
+pct exec 120 -- systemctl list-timers cratetab-update.timer    # nächster Lauf
+pct exec 120 -- journalctl -u cratetab-update                  # was ist passiert?
+pct exec 120 -- systemctl disable --now cratetab-update.timer  # ausschalten
+```
+
+Container mit Version 0.2.0 oder älter kennen den Timer noch nicht. Dort einmal von Hand
+aktualisieren und die neuen Dateien holen:
+
+```sh
+pct exec 120 -- cratetab-update
+pct exec 120 -- /usr/local/lib/cratetab/cratetab install-lxc-tools
+pct exec 120 -- systemctl enable --now cratetab-update.timer
+```
+
+### Docker
 
 ```sh
 cd /opt/cratetab
@@ -459,6 +497,12 @@ cratetab import-fnordcredit <ordner> [--dry-run] [--replace]   # Daten aus fnord
 cratetab --version                          # Version anzeigen
 ```
 
+Nur im LXC-Container und als root (macht `cratetab-update` nach jedem Update selbst):
+
+```sh
+/usr/local/lib/cratetab/cratetab install-lxc-tools   # Skripte und systemd-Units auffrischen
+```
+
 Im Docker-Container wird `docker compose exec cratetab` davorgesetzt, im LXC-Template läuft `cratetab …` direkt
 in der Container-Konsole (`pct enter <id>`). Der Endpunkt `/health`
 liefert `ok`, solange die Datenbank erreichbar ist.
@@ -502,7 +546,7 @@ locales/         Übersetzungen (*.ftl)
 assets/          CSS, JavaScript, Logo, Flaggen, htmx, zxing
 migrations/      Datenbankschema (SQL, wird beim Start automatisch eingespielt)
 tests/           Tests
-packaging/lxc/   Bau des Proxmox-LXC-Templates (systemd-Dienst, Backup, Update)
+packaging/lxc/   Bau des Proxmox-LXC-Templates (systemd-Dienst, Backup, Update, Auto-Update-Timer)
 scripts/         proxmox-install.sh: Container auf dem Proxmox-Host anlegen
 docs/            weitere Doku, u. a. zum Umzug von fnordcredit
 ```

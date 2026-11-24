@@ -1,15 +1,34 @@
 #!/bin/sh
 # Aktualisiert Crate Tab im LXC-Container auf die neueste (oder eine bestimmte) Version.
 #
-#   cratetab-update           # neueste Version
+#   cratetab-update           # neueste Version (nichts zu tun, wenn sie schon läuft)
 #   cratetab-update v0.2.0    # bestimmte Version
+#   cratetab-update --force   # neueste Version auch dann installieren, wenn sie schon läuft
+#
+# Automatisch (jede Nacht, siehe cratetab-update.timer):
+#   systemctl enable --now cratetab-update.timer
 #
 # Ablauf: Binärdatei von GitHub laden und Prüfsumme kontrollieren, Backup anlegen,
-# Dienst stoppen, Datei tauschen, Dienst starten. Schlägt der Start fehl, wird die
-# alte Version wiederhergestellt. Datenbank-Migrationen laufen beim Start automatisch.
+# Dienst stoppen, Datei tauschen, Dienst starten. Datenbank-Migrationen laufen beim
+# Start automatisch. Startet die neue Version nicht, werden alte Programmdatei und
+# Datenbank aus dem Backup wiederhergestellt. Danach bringt die neue Version die
+# Skripte und systemd-Units im Container auf ihren Stand.
 set -eu
 
 REPO="${CRATETAB_REPO:-dertika/cratetab}"
+BIN=/usr/local/lib/cratetab/cratetab
+
+force=0
+tag=""
+for arg in "$@"; do
+    case "$arg" in
+        --force) force=1 ;;
+        -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        v*) tag="$arg" ;;
+        *) echo "Unbekanntes Argument: $arg (siehe cratetab-update --help)" >&2; exit 2 ;;
+    esac
+done
+
 case "$(uname -m)" in
     x86_64) ARCH=amd64 ;;
     aarch64) ARCH=arm64 ;;
@@ -17,13 +36,25 @@ case "$(uname -m)" in
 esac
 ASSET="cratetab-linux-$ARCH"
 
-if [ $# -ge 1 ]; then
-    BASE="https://github.com/$REPO/releases/download/$1"
-else
-    BASE="https://github.com/$REPO/releases/latest/download"
+installed=$("$BIN" --version 2>/dev/null | awk '{print $2}' || true)
+
+if [ -z "$tag" ]; then
+    # Die Weiterleitung von …/releases/latest verrät die neueste Version, ohne
+    # dass die Programmdatei geladen werden muss
+    url=$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest")
+    tag=${url##*/}
+    case "$tag" in
+        v*) ;;
+        *) echo "Neueste Version nicht gefunden (Antwort: $url)" >&2; exit 1 ;;
+    esac
 fi
 
-BIN=/usr/local/lib/cratetab/cratetab
+if [ "$tag" = "v$installed" ] && [ "$force" = 0 ]; then
+    echo "Crate Tab $installed ist aktuell."
+    exit 0
+fi
+
+BASE="https://github.com/$REPO/releases/download/$tag"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
@@ -33,26 +64,51 @@ curl -fsSL -o "$tmp/$ASSET.sha256" "$BASE/$ASSET.sha256"
 (cd "$tmp" && sha256sum -c "$ASSET.sha256")
 chmod 755 "$tmp/$ASSET"
 
-old_version=$("$BIN" --version 2>/dev/null || echo "?")
 new_version=$("$tmp/$ASSET" --version)
-echo "Installiert: $old_version, neu: $new_version"
+echo "Installiert: ${installed:-?}, neu: $new_version"
 
-echo "Backup vor dem Update …"
-/usr/local/sbin/cratetab-backup
+# Backup mit dem noch installierten Programm, Name passt zur Aufräumregel von
+# cratetab-backup (wird nach CRATETAB_BACKUP_KEEP_DAYS gelöscht)
+. /etc/cratetab/cratetab.env
+DB="${CRATETAB_DATABASE:-/var/lib/cratetab/cratetab.db}"
+backup="/var/lib/cratetab/backups/cratetab-$(date +%Y-%m-%d_%H%M%S)-vor-update.db"
+echo "Backup vor dem Update: $backup"
+/usr/local/bin/cratetab backup "$backup"
 
 systemctl stop cratetab
-cp "$BIN" "$BIN.previous"
+cp -p "$BIN" "$BIN.previous"
 install -m 755 "$tmp/$ASSET" "$BIN"
 systemctl start cratetab
 
-sleep 3
-if systemctl is-active --quiet cratetab && /usr/local/bin/cratetab healthcheck >/dev/null; then
+# Bis zu 60 Sekunden auf den Start warten (Migrationen können etwas dauern)
+ok=0
+i=0
+while [ $i -lt 30 ]; do
+    sleep 2
+    i=$((i + 1))
+    systemctl is-active --quiet cratetab || continue
+    if /usr/local/bin/cratetab healthcheck >/dev/null 2>&1; then
+        ok=1
+        break
+    fi
+done
+
+if [ "$ok" = 1 ]; then
+    # Neue Skripte und systemd-Units übernehmen (gibt es ab Version 0.2.1)
+    if "$BIN" help 2>/dev/null | grep -q install-lxc-tools; then
+        "$BIN" install-lxc-tools
+    fi
     echo "Update erfolgreich: $new_version"
-else
-    echo "Neue Version startet nicht – stelle die alte Version wieder her." >&2
-    journalctl -u cratetab -n 20 --no-pager >&2 || true
-    systemctl stop cratetab || true
-    install -m 755 "$BIN.previous" "$BIN"
-    systemctl start cratetab
-    exit 1
+    exit 0
 fi
+
+echo "Neue Version startet nicht – stelle alte Version und Datenbank wieder her." >&2
+journalctl -u cratetab -n 30 --no-pager >&2 || true
+systemctl stop cratetab || true
+install -m 755 "$BIN.previous" "$BIN"
+# Die neue Version hat die Datenbank evtl. schon migriert; die alte Version
+# startet damit nicht. Da die neue Version nie lief, geht nichts verloren.
+rm -f "$DB-wal" "$DB-shm"
+install -m 640 -o cratetab -g cratetab "$backup" "$DB"
+systemctl start cratetab
+exit 1

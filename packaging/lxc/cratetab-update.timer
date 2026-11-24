@@ -1,0 +1,14 @@
+[Unit]
+Description=Crate Tab – nächtliches Update
+Documentation=https://github.com/dertika/cratetab#update
+
+# Nicht standardmäßig aktiv. Einschalten mit:
+#   systemctl enable --now cratetab-update.timer
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
