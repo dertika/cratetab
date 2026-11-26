@@ -1,0 +1,9 @@
+[Unit]
+Description=Crate Tab – Update auf die neueste Version
+Documentation=https://github.com/dertika/cratetab#update
+Wants=network-online.target
+After=network-online.target cratetab-backup.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cratetab-update

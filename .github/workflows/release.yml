@@ -85,6 +85,9 @@ jobs:
             test -L /etc/systemd/system/timers.target.wants/cratetab-backup.timer
             test -L /usr/bin/cratetab && test -L /usr/sbin/cratetab-update
             cratetab --version
+            # Template und eingebaute LXC-Dateien (für cratetab-update) stimmen überein
+            /usr/local/lib/cratetab/cratetab install-lxc-tools | grep -q "aktuell"
+            test ! -e /etc/systemd/system/timers.target.wants/cratetab-update.timer
             cratetab seed-demo
             cratetab check-balances
             cratetab-backup

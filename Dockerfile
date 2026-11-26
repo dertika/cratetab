@@ -40,6 +40,7 @@ COPY migrations ./migrations
 COPY templates ./templates
 COPY locales ./locales
 COPY assets ./assets
+COPY packaging/lxc ./packaging/lxc
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/src/target,sharing=locked,id=cratetab-target-${TARGETARCH} \

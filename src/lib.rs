@@ -21,6 +21,7 @@
 //! | [`seed`]     | Demo-Daten                                                |
 //! | [`settings`] | im Admin-Bereich änderbare Einstellungen                  |
 //! | [`fnordcredit`] | Import aus dem alten fnordcredit (RethinkDB-Export)    |
+//! | [`lxc`]      | Skripte und systemd-Units des Proxmox-LXC-Containers      |
 
 pub mod admins;
 pub mod articles;
@@ -30,6 +31,8 @@ pub mod db;
 pub mod fnordcredit;
 pub mod i18n;
 pub mod ledger;
+#[cfg(unix)]
+pub mod lxc;
 pub mod money;
 pub mod password;
 pub mod seed;

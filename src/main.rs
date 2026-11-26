@@ -23,6 +23,8 @@ Aufruf:
   cratetab import-fnordcredit <ordner> [--dry-run] [--replace]
                                            Daten aus fnordcredit übernehmen (RethinkDB-Export);
                                            --replace ersetzt vorhandene Daten (mit Sicherung)
+  cratetab install-lxc-tools               Skripte und systemd-Units im LXC-Container auf den
+                                           Stand dieser Version bringen (ruft cratetab-update auf)
   cratetab --version                       Version anzeigen
   cratetab help                            Diese Hilfe
 
@@ -46,6 +48,26 @@ async fn main() -> Result<()> {
         Some("version" | "--version" | "-V")
     ) {
         println!("cratetab {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+    // Braucht keine Konfiguration und läuft als root (aus cratetab-update)
+    #[cfg(unix)]
+    if args.first().map(String::as_str) == Some("install-lxc-tools") {
+        let changed = cratetab::lxc::install(std::path::Path::new("/"))?;
+        if changed.is_empty() {
+            println!("LXC-Dateien sind aktuell.");
+            return Ok(());
+        }
+        for p in &changed {
+            println!("aktualisiert: {}", p.display());
+        }
+        let status = std::process::Command::new("systemctl")
+            .arg("daemon-reload")
+            .status()
+            .context("systemctl daemon-reload")?;
+        if !status.success() {
+            bail!("systemctl daemon-reload fehlgeschlagen");
+        }
         return Ok(());
     }
     let config = Config::from_env()?;
